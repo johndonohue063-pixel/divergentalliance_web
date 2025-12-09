@@ -32,4 +32,5 @@ RUN dart pub global activate dhttpd
 
 EXPOSE 8080
 
-CMD ["dhttpd", "--path", "build/web", "--port", "8080"]
+# IMPORTANT: bind to 0.0.0.0 so Render can see port 8080
+CMD ["dhttpd", "--path", "build/web", "--port", "8080", "--host", "0.0.0.0"]
