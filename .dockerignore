@@ -1,0 +1,12 @@
+﻿.git
+.gitignore
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.idea/
+.vscode/
+*.iml
+*.log
+*.ps1
