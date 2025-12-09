@@ -1,409 +1,442 @@
-﻿import 'dart:async';
+﻿import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-
-import '../ui/da_brand.dart';
-
-// ======= GLOBAL NEON CONSTANTS ===============================================
-
-const Color kDaNeon = Color(0xFFFF6A00);
-const List<Shadow> kDaNeonGlow = [
-  Shadow(
-    color: Color(0xFFFFA040),
-    blurRadius: 22,
-  ),
-  Shadow(
-    color: Color(0xFFFF6A00),
-    blurRadius: 10,
-  ),
-  Shadow(
-    color: Colors.white24,
-    blurRadius: 0,
-  ),
-];
-
-// ======= MAIN LANDING SCREEN =================================================
-
-class CastleLanding extends StatefulWidget {
-  const CastleLanding({super.key});
+class LandingScreen extends StatefulWidget {
+  const LandingScreen({super.key});
 
   @override
-  State<CastleLanding> createState() => _CastleLandingState();
+  State<LandingScreen> createState() => _LandingScreenState();
 }
 
-class _CastleLandingState extends State<CastleLanding>
+class _LandingScreenState extends State<LandingScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _marqueeController;
-  int _headlineIndex = 0;
-  Timer? _headlineTimer;
+  late final VideoPlayerController _videoController;
+  bool _videoReady = false;
 
-  static const List<String> _intelHeadlines = [
-    'STORM CREWS MOBILIZING 24/7',
-    'UTILITY SUPPLY • TOOLS • PPE • CONDUIT',
-    'CUSTOM GROUNDING & JUMPER ASSEMBLIES',
-    '400,000+ MAN-HOURS • ZERO ACCIDENTS',
-  ];
-
-  static const String _marqueeText =
-      'Veteran-owned · IBEW-built · Powering the Industry Forward | '
-      'Storm crews mobilizing 24/7 – rapid power restoration when it matters most | '
-      'Top-tier utility tools, PPE & conduit — trusted by linemen nationwide | '
-      'Custom grounding & jumper assemblies — safety and reliability built in | '
-      'From emergency storm response to full-service utility supply — we’ve got you covered | '
-      'Only union-built tooling & materials | Uncompromising quality and craftsmanship — Build Masters | '
-      '400,000+ man-hours worked – no accidents. Safety first, always. | '
-      'Need conduit, storm-truck kits, or hot-stick tools? Contact us today.';
+  late final AnimationController _glowController;
+  late final Animation<double> _glow;
 
   @override
   void initState() {
     super.initState();
 
-    _marqueeController = AnimationController(
+    // Neon “breathing” glow for the headline.
+    _glowController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 40),
-    )..repeat();
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
 
-    _headlineTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      setState(() {
-        _headlineIndex = (_headlineIndex + 1) % _intelHeadlines.length;
+    _glow = CurvedAnimation(
+      parent: _glowController,
+      curve: Curves.easeInOut,
+    );
+
+    // Hero video – muted + looping so it can autoplay on web.
+    _videoController = VideoPlayerController.asset('assets/video/da_hero.mp4')
+      ..setLooping(true)
+      ..setVolume(0.0)
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() => _videoReady = true);
+        _videoController.play();
       });
-    });
   }
 
   @override
   void dispose() {
-    _headlineTimer?.cancel();
-    _marqueeController.dispose();
+    _glowController.dispose();
+    _videoController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final isNarrow = size.width < 720;
+    final size = MediaQuery.of(context).size;
+    final isPortrait = size.height >= size.width;
+    final isPhoneWidth = size.width < 700;
 
+    // Narrow portrait = phone → static wallpaper + CTA layout only.
+    if (isPortrait && isPhoneWidth) {
+      return const _MobileLanding();
+    }
+
+    // Desktop / tablet / landscape → video + neon hero.
+    return _DesktopLanding(
+      videoController: _videoController,
+      videoReady: _videoReady,
+      glow: _glow,
+    );
+  }
+}
+
+// =================== DESKTOP / LANDSCAPE HERO ===================
+
+class _DesktopLanding extends StatelessWidget {
+  const _DesktopLanding({
+    required this.videoController,
+    required this.videoReady,
+    required this.glow,
+  });
+
+  final VideoPlayerController videoController;
+  final bool videoReady;
+  final Animation<double> glow;
+
+  static const Color _brandOrange = Color(0xFFFF6A00);
+  static const Color _brandYellow = Color(0xFFFFC300);
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        titleSpacing: 24,
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/icons/da_logo.png',
+              height: 28,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Divergent Alliance',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Dark gradient for readability over video / wallpaper.
+          // Hero video background.
+          if (videoReady)
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: videoController.value.size.width,
+                height: videoController.value.size.height,
+                child: VideoPlayer(videoController),
+              ),
+            )
+          else
+            // Fallback still image while video loads.
+            Image.asset(
+              'assets/images/truck.jpg',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(color: Colors.black),
+            ),
+
+          // Dark scrim to keep text readable.
           Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.transparent,
-                  Color(0xE6000000),
+                  Colors.black.withOpacity(0.15),
+                  Colors.black.withOpacity(0.4),
+                  Colors.black.withOpacity(0.9),
+                ],
+                stops: const [0.0, 0.4, 1.0],
+              ),
+            ),
+          ),
+
+          // Center neon text block.
+          Center(
+            child: AnimatedBuilder(
+              animation: glow,
+              builder: (context, _) {
+                final strength = glow.value;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'OPERATIONAL WEATHER INTELLIGENCE',
+                      style: TextStyle(
+                        fontSize: 14,
+                        letterSpacing: 4,
+                        color: Colors.white.withOpacity(0.75),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    ShaderMask(
+                      shaderCallback: (bounds) {
+                        return const LinearGradient(
+                          colors: [_brandOrange, _brandYellow],
+                        ).createShader(bounds);
+                      },
+                      child: Text(
+                        'ELECTRIFY THE GRID',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 72,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 3,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              color: _brandOrange.withOpacity(0.8 * strength),
+                              blurRadius: 24 + 8 * strength,
+                            ),
+                            Shadow(
+                              color: _brandYellow.withOpacity(0.6 * strength),
+                              blurRadius: 40 + 10 * strength,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Storm response, material supply, and utility R&D for the crews that keep the grid alive.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.4,
+                        color: Colors.white.withOpacity(0.85),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+
+          // Bottom copy + CTAs.
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    flex: 3,
+                    child: Text(
+                      'Trusted by linemen nationwide. Custom grounding & jumper assemblies, PPE, and storm tools with industrial‑grade safety and reliability.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 32),
+                  Flexible(
+                    flex: 2,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        SizedBox(
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/weather');
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _brandOrange,
+                              foregroundColor: Colors.black,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 32),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            child: const Text(
+                              'WEATHER CENTER',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        SizedBox(
+                          height: 52,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/shop');
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.white70),
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 28),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            child: const Text(
+                              'SHOP',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =================== MOBILE PORTRAIT HERO ===================
+
+class _MobileLanding extends StatelessWidget {
+  const _MobileLanding();
+
+  static const Color _brandOrange = Color(0xFFFF6A00);
+  static const Color _onBrandOrange = Colors.black;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/icons/da_logo.png',
+              height: 24,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Divergent Alliance',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/truck.jpg',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: Colors.black),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.05),
+                  Colors.black.withOpacity(0.4),
+                  Colors.black.withOpacity(0.9),
                 ],
               ),
             ),
           ),
           SafeArea(
             child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isNarrow ? 20 : 40,
-                vertical: isNarrow ? 16 : 24,
-              ),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTopBar(isNarrow),
+                  Text(
+                    'OPERATIONAL WEATHER INTELLIGENCE',
+                    style: TextStyle(
+                      fontSize: 11,
+                      letterSpacing: 2.5,
+                      color: Colors.white.withOpacity(0.75),
+                    ),
+                  ),
                   const Spacer(),
-                  _buildIntelBlock(isNarrow),
-                  const SizedBox(height: 28),
-                  _buildButtonsRow(),
-                  const SizedBox(height: 32),
+                  const Text(
+                    'ELECTRIFY\nTHE GRID',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Storm-hardening, utility supply, and real-time outage intelligence built for linemen, operations, and storm response teams.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 52,
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.cloud),
+                      label: const Text('WEATHER CENTER'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _brandOrange,
+                        foregroundColor: _onBrandOrange,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pushNamed('/weather');
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 52,
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.storefront),
+                      label: const Text('SHOP'),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pushNamed('/shop');
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Optimized for desktops and tablets in landscape. Mobile phones use the in‑app Divergent wallpaper experience.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.4,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
-          _buildBottomMarquee(),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTopBar(bool isNarrow) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Wordmark – no black boxes.
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'DIVERGENT',
-              style: GoogleFonts.wallpoet(
-                fontSize: isNarrow ? 22 : 26,
-                letterSpacing: 6,
-                color: kDaNeon,
-                shadows: kDaNeonGlow,
-              ),
-            ),
-            Text(
-              'ALLIANCE',
-              style: GoogleFonts.wallpoet(
-                fontSize: isNarrow ? 22 : 26,
-                letterSpacing: 6,
-                color: Colors.white,
-                shadows: const [
-                  Shadow(
-                    color: Colors.black54,
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        if (!isNarrow)
-          Text(
-            'STORM RESPONSE • UTILITY SUPPLY • R&D',
-            style: GoogleFonts.robotoCondensed(
-              fontSize: 13,
-              letterSpacing: 2.0,
-              color: Colors.white70,
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildIntelBlock(bool isNarrow) {
-    final baseTitleSize = isNarrow ? 24.0 : 36.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'ELECTRIFY THE GRID.',
-          style: GoogleFonts.wallpoet(
-            fontSize: baseTitleSize,
-            letterSpacing: 3.5,
-            color: kDaNeon,
-            height: 1.2,
-            shadows: kDaNeonGlow,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Storm crews, utility supply, and R&D — built by veterans, '
-          'powered by IBEW craftsmen.',
-          style: GoogleFonts.robotoMono(
-            fontSize: isNarrow ? 11 : 13,
-            height: 1.5,
-            color: Colors.white70,
-          ),
-        ),
-        const SizedBox(height: 18),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 550),
-          transitionBuilder: (child, animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0.0, 0.2),
-                  end: Offset.zero,
-                ).animate(animation),
-                child: child,
-              ),
-            );
-          },
-          child: Text(
-            _intelHeadlines[_headlineIndex],
-            key: ValueKey(_intelHeadlines[_headlineIndex]),
-            style: GoogleFonts.robotoMono(
-              fontSize: isNarrow ? 12 : 14,
-              letterSpacing: 1.2,
-              color: kDaNeon,
-              shadows: kDaNeonGlow,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildButtonsRow() {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 12,
-      children: [
-        _NeonButton(
-          labelTop: 'WX OPS',
-          labelMain: 'Weather Center PRO',
-          labelBottom: 'Live situational intelligence',
-          onTap: () => Navigator.of(context).pushNamed('/weather'),
-        ),
-        _NeonButton(
-          labelTop: 'SUPPLY',
-          labelMain: 'Shop',
-          labelBottom: 'Store wiring in progress',
-          onTap: () => Navigator.of(context).pushNamed('/shop'),
-        ),
-        _NeonButton(
-          labelTop: 'R&D',
-          labelMain: 'Build Lab',
-          labelBottom: 'Tooling, prototypes, concepts',
-          onTap: () {
-            // placeholder for future R&D screen
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBottomMarquee() {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 8,
-      child: SizedBox(
-        height: 26,
-        child: ClipRect(
-          child: AnimatedBuilder(
-            animation: _marqueeController,
-            builder: (context, child) {
-              final value = _marqueeController.value;
-              final dx = 1.0 - 2.0 * value; // 1 -> -1
-              return FractionalTranslation(
-                translation: Offset(dx, 0),
-                child: child,
-              );
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                _marqueeText,
-                maxLines: 1,
-                overflow: TextOverflow.visible,
-                style: GoogleFonts.robotoMono(
-                  fontSize: 12,
-                  letterSpacing: 0.8,
-                  color: kDaNeon,
-                  shadows: kDaNeonGlow,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ======= NEON BUTTON =========================================================
-
-class _NeonButton extends StatefulWidget {
-  const _NeonButton({
-    required this.labelTop,
-    required this.labelMain,
-    required this.labelBottom,
-    required this.onTap,
-  });
-
-  final String labelTop;
-  final String labelMain;
-  final String labelBottom;
-  final VoidCallback onTap;
-
-  @override
-  State<_NeonButton> createState() => _NeonButtonState();
-}
-
-class _NeonButtonState extends State<_NeonButton> {
-  bool _hovering = false;
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final scale = _pressed ? 0.97 : (_hovering ? 1.03 : 1.0);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 120),
-          scale: scale,
-          child: Container(
-            width: 260,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: _hovering ? Colors.white : kDaNeon,
-                width: 1.4,
-              ),
-              gradient: LinearGradient(
-                colors: _hovering
-                    ? const [
-                        Color(0xFF111111),
-                        Color(0xFF1E1E1E),
-                      ]
-                    : const [
-                        Color(0xFF080808),
-                        Color(0xFF141414),
-                      ],
-              ),
-              boxShadow: _hovering
-                  ? [
-                      BoxShadow(
-                        color: kDaNeon.withOpacity(0.7),
-                        blurRadius: 18,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.9),
-                        blurRadius: 18,
-                        spreadRadius: 1,
-                      ),
-                    ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.labelTop,
-                  style: GoogleFonts.robotoMono(
-                    fontSize: 11,
-                    letterSpacing: 2.0,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.labelMain,
-                  style: GoogleFonts.wallpoet(
-                    fontSize: 18,
-                    letterSpacing: 2.4,
-                    color: kDaNeon,
-                    shadows: kDaNeonGlow,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.labelBottom,
-                  style: GoogleFonts.robotoMono(
-                    fontSize: 11,
-                    color: Colors.white60,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
