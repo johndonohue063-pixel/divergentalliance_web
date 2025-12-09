@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'ui/neon_landing.dart';
+import 'screens/landing_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,7 @@ class DivergentAllianceApp extends StatelessWidget {
           displayColor: Colors.white,
         ),
       ),
-      home: const NeonLandingScreen(),
+        home: const LandingScreen(),
     );
   }
 }
