@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
 # Install Flutter
 RUN git clone https://github.com/flutter/flutter.git /usr/local/flutter
 
-# Add Flutter and Dart to PATH
-ENV PATH="/usr/local/flutter/bin:/usr/local/flutter/bin/cache/dart-sdk/bin:${PATH}"
+# Add Flutter, Dart, and pub cache (dhttpd) to PATH
+ENV PATH="/usr/local/flutter/bin:/usr/local/flutter/bin/cache/dart-sdk/bin:/root/.pub-cache/bin:${PATH}"
 
 # Make tar ignore ownership change failures (fixes gradle-wrapper.tgz chown errors)
 ENV TAR_OPTIONS="--no-same-owner"
