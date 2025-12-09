@@ -24,7 +24,7 @@ COPY . .
 # Build Flutter web
 RUN flutter build web --release
 
-# Serve build/web with a tiny HTTP server (dhttpd)
+# Serve build/web with dhttpd (simple Dart web server)
 RUN dart pub global activate dhttpd
 
 EXPOSE 8080
