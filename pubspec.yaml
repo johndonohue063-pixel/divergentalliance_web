@@ -1,4 +1,4 @@
-name: divergent_alliance
+﻿name: divergent_alliance
 description: Divergent Alliance mobile app
 publish_to: "none"
 version: 2.0.0+220
@@ -70,4 +70,6 @@ flutter_launcher_icons:
   adaptive_icon_background: "#000000"
   remove_alpha_ios: true
 
+
+    - assets/video/
 

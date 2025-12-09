@@ -1,0 +1,17 @@
+<resources>
+
+    <!-- Launch theme for Android 11 and below -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <!-- Background shown while Flutter initializes -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
+    <!-- Normal theme once Flutter is running -->
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+
+</resources>

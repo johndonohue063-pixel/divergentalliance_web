@@ -20,8 +20,7 @@ class RunReportProcessingScreen extends StatefulWidget {
       _RunReportProcessingScreenState();
 }
 
-class _RunReportProcessingScreenState
-    extends State<RunReportProcessingScreen> {
+class _RunReportProcessingScreenState extends State<RunReportProcessingScreen> {
   @override
   void initState() {
     super.initState();

@@ -1,4 +1,4 @@
-﻿class WxReportRow {
+class WxReportRow {
   final String state;
   final String county;
   final int severity;

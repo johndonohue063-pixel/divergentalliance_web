@@ -21,7 +21,8 @@ class GatewayPin {
     return savedHash == _hash(pinAttempt);
   }
 
-  static String _hash(String v) => sha256.convert(utf8.encode('ga1::$v')).toString();
+  static String _hash(String v) =>
+      sha256.convert(utf8.encode('ga1::$v')).toString();
 
   static Future<void> setPin(String newPin) async {
     await _storage.write(key: _kKey, value: _hash(newPin));

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class WeatherCenterDrillDownScreen extends StatelessWidget {
@@ -69,10 +69,7 @@ class WeatherCenterDrillDownScreen extends StatelessWidget {
     final state = (row['state'] ?? row['State'] ?? '').toString();
 
     final expectedGust = _asNum(
-      row['expectedGust'] ??
-          row['Expected Gust'] ??
-          row['gust'] ??
-          row['Gust'],
+      row['expectedGust'] ?? row['Expected Gust'] ?? row['gust'] ?? row['Gust'],
     );
 
     final expectedSustained = _asNum(
@@ -133,7 +130,7 @@ class WeatherCenterDrillDownScreen extends StatelessWidget {
           const SizedBox(height: 20),
           const Text(
             "This is a detailed view for the selected county's wind analysis, "
-                "outage likelihood, and threat level.",
+            "outage likelihood, and threat level.",
             style: TextStyle(color: Colors.white70),
           ),
         ],

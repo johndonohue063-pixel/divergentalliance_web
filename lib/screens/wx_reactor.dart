@@ -1,4 +1,4 @@
-﻿import "package:flutter/material.dart";
+import "package:flutter/material.dart";
 
 /// Full-screen high-tech orange/black background used by WeatherCenterPro.
 /// Pure visual; ignores pointer events so it never blocks taps.

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class DaNuclearTheme {
   DaNuclearTheme._();
@@ -57,4 +57,3 @@ class DaNuclearTheme {
     );
   }
 }
-

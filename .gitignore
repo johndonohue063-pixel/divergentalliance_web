@@ -1,0 +1,25 @@
+﻿# Flutter build outputs
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+
+# IDE / OS junk
+.vscode/
+.idea/
+*.iml
+*.log
+
+# Platform builds
+android/app/build/
+ios/Pods/
+macos/Runner.xcworkspace/
+
+# Local scripts & backups
+*.ps1
+*.bak_*
+*.orig
+
+# Optional: do NOT track large hero videos in Git
+web/media/

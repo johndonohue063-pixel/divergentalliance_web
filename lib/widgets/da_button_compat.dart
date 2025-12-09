@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class DAButton extends StatelessWidget {
   const DAButton({
@@ -47,7 +47,6 @@ class DAButton extends StatelessWidget {
                 // centerSlice: centerSlice,  // <-- comment this for a second
                 filterQuality: FilterQuality.high,
               ),
-
             ),
             child: DefaultTextStyle.merge(
               style: const TextStyle(

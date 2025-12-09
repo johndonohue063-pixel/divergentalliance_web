@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class DAWoodButton extends StatelessWidget {
   final String label;
@@ -18,20 +18,26 @@ class DAWoodButton extends StatelessWidget {
   Widget build(BuildContext context) {
     const img = AssetImage('assets/images/button_sparks.png');
     return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 220, maxWidth: 320, minHeight: 64),
+      constraints:
+          const BoxConstraints(minWidth: 220, maxWidth: 320, minHeight: 64),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           image: DecorationImage(
             image: img,
             fit: BoxFit.cover,
-            colorFilter: primary ? null : const ColorFilter.mode(Colors.black54, BlendMode.darken),
+            colorFilter: primary
+                ? null
+                : const ColorFilter.mode(Colors.black54, BlendMode.darken),
           ),
           boxShadow: const [
-            BoxShadow(color: Colors.black87, blurRadius: 18, offset: Offset(0, 12)),
-            BoxShadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 2)),
+            BoxShadow(
+                color: Colors.black87, blurRadius: 18, offset: Offset(0, 12)),
+            BoxShadow(
+                color: Colors.black54, blurRadius: 6, offset: Offset(0, 2)),
           ],
-          border: Border.all(color: Colors.orangeAccent.withOpacity(.35), width: 1.2),
+          border: Border.all(
+              color: Colors.orangeAccent.withOpacity(.35), width: 1.2),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
@@ -53,7 +59,12 @@ class DAWoodButton extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
                       letterSpacing: .6,
-                      shadows: [ Shadow(blurRadius: 8, color: Colors.black, offset: Offset(0, 2)) ],
+                      shadows: [
+                        Shadow(
+                            blurRadius: 8,
+                            color: Colors.black,
+                            offset: Offset(0, 2))
+                      ],
                     ),
                   ),
                 ],

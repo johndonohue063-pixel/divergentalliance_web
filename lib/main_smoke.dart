@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:divergent_alliance/screens/weather_center_pro.dart';
-void main(){
+
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: Scaffold(backgroundColor: Colors.black,
-      body: Center(child: Text("smoke test", style: TextStyle(color: Colors.white, fontSize: 22))),
+    home: Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+          child: Text("smoke test",
+              style: TextStyle(color: Colors.white, fontSize: 22))),
     ),
   ));
 }

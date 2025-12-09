@@ -1,4 +1,4 @@
-﻿import "dart:convert";
+import "dart:convert";
 import "package:flutter/material.dart";
 import "package:syncfusion_flutter_gauges/gauges.dart";
 import "package:flutter_map/flutter_map.dart";
@@ -13,7 +13,7 @@ const String backendBaseUrl = "https://da-wx-backend-1.onrender.com";
 Future<WeatherReport> fetchWeatherReport(String state, int hoursAhead) async {
   final uri = Uri.parse(backendBaseUrl + "/api/wx").replace(
     queryParameters: <String, String>{
-      "mode": "state",        // change to match your API
+      "mode": "state", // change to match your API
       "state": state,
       "hoursAhead": "$hoursAhead",
     },
@@ -27,14 +27,16 @@ Future<WeatherReport> fetchWeatherReport(String state, int hoursAhead) async {
   );
 
   if (resp.statusCode != 200) {
-    throw Exception("Backend error " + resp.statusCode.toString() + ": " + resp.body);
+    throw Exception(
+        "Backend error " + resp.statusCode.toString() + ": " + resp.body);
   }
 
   final dynamic decoded = json.decode(resp.body);
   Map<String, dynamic> payload;
 
   if (decoded is Map<String, dynamic>) {
-    if (decoded.containsKey("data") && decoded["data"] is Map<String, dynamic>) {
+    if (decoded.containsKey("data") &&
+        decoded["data"] is Map<String, dynamic>) {
       payload = decoded["data"] as Map<String, dynamic>;
     } else {
       payload = decoded;
@@ -81,7 +83,8 @@ class _WeatherCenterSPPPageState extends State<WeatherCenterSPPPage> {
     });
 
     try {
-      final WeatherReport result = await fetchWeatherReport(_selectedState, _selectedHours);
+      final WeatherReport result =
+          await fetchWeatherReport(_selectedState, _selectedHours);
       setState(() {
         _report = result;
       });
@@ -171,7 +174,8 @@ class _WeatherCenterSPPPageState extends State<WeatherCenterSPPPage> {
                 value: _selectedState,
                 dropdownColor: Colors.black,
                 iconEnabledColor: Colors.orangeAccent,
-                style: const TextStyle(color: Colors.orangeAccent, fontSize: 16),
+                style:
+                    const TextStyle(color: Colors.orangeAccent, fontSize: 16),
                 items: _states
                     .map(
                       (String s) => DropdownMenuItem<String>(
@@ -197,7 +201,8 @@ class _WeatherCenterSPPPageState extends State<WeatherCenterSPPPage> {
                 value: _selectedHours,
                 dropdownColor: Colors.black,
                 iconEnabledColor: Colors.orangeAccent,
-                style: const TextStyle(color: Colors.orangeAccent, fontSize: 16),
+                style:
+                    const TextStyle(color: Colors.orangeAccent, fontSize: 16),
                 items: _hoursAhead
                     .map(
                       (int h) => DropdownMenuItem<int>(
@@ -241,10 +246,10 @@ class _WeatherCenterSPPPageState extends State<WeatherCenterSPPPage> {
   Widget _buildGaugeRow(double w, double h) {
     final WeatherReport? r = _report;
 
-    final double wind   = r != null ? r.windSpeed      : 0.0;
-    final double gust   = r != null ? r.gustSpeed      : 0.0;
-    final double rain   = r != null ? r.precipitation  : 0.0;
-    final double press  = r != null ? r.pressure       : 950.0;
+    final double wind = r != null ? r.windSpeed : 0.0;
+    final double gust = r != null ? r.gustSpeed : 0.0;
+    final double rain = r != null ? r.precipitation : 0.0;
+    final double press = r != null ? r.pressure : 950.0;
 
     return SizedBox(
       height: h * 0.13,
@@ -333,7 +338,8 @@ class _WeatherCenterSPPPageState extends State<WeatherCenterSPPPage> {
   Widget _buildStatsRowTwo() {
     final WeatherReport? r = _report;
     final String rain = r != null ? r.precipitation.toStringAsFixed(2) : "--";
-    final String lightning = r != null ? r.lightningRate.toStringAsFixed(0) : "--";
+    final String lightning =
+        r != null ? r.lightningRate.toStringAsFixed(0) : "--";
     final String hours = _selectedHours.toString();
 
     return Row(

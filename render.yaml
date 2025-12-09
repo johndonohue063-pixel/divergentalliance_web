@@ -1,0 +1,10 @@
+services:
+  - type: static
+    name: divergent-wx-web
+    repo: https://github.com/<your-account>/divergentalliance_clean
+    branch: main
+    buildCommand: flutter build web
+    staticPublishPath: build/web
+    envVars:
+      - key: FLUTTER_CHANNEL
+        value: stable

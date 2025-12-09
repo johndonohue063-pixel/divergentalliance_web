@@ -16,7 +16,7 @@ class ImageButton extends StatelessWidget {
     super.key,
     required this.label,
     required this.onPressed,
-    this.height = 64,                               // consistent pill height
+    this.height = 64, // consistent pill height
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
     this.textStyle,
   });
@@ -25,13 +25,13 @@ class ImageButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final ts = (textStyle ??
         Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-              shadows: const [
-                Shadow(blurRadius: 3, color: Colors.black54, offset: Offset(0, 1)),
-              ],
-            ))!;
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+          shadows: const [
+            Shadow(blurRadius: 3, color: Colors.black54, offset: Offset(0, 1)),
+          ],
+        ))!;
 
     return Semantics(
       button: true,
@@ -67,7 +67,8 @@ class ImageButton extends StatelessWidget {
                     // Label on top
                     Padding(
                       padding: padding,
-                      child: Text(label, style: ts, textAlign: TextAlign.center),
+                      child:
+                          Text(label, style: ts, textAlign: TextAlign.center),
                     ),
                   ],
                 ),

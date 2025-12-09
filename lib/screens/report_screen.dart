@@ -15,7 +15,8 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   void initState() {
     super.initState();
-    _future = fetchStateReport(state: "TX", hours: 36, metric: "wind", threshold: 22);
+    _future =
+        fetchStateReport(state: "TX", hours: 36, metric: "wind", threshold: 22);
   }
 
   @override
@@ -39,7 +40,7 @@ class _ReportScreenState extends State<ReportScreen> {
               final r = items[i] as Map<String, dynamic>;
               final county = (r["county"] ?? "").toString();
               final state = (r["state"] ?? "").toString();
-              final wind  = (r["wind_max"] ?? 0).toString();
+              final wind = (r["wind_max"] ?? 0).toString();
               return ListTile(
                 title: Text(", "),
                 subtitle: Text("Max wind: "),

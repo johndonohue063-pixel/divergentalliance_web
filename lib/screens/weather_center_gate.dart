@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../widgets/da_button_compat.dart';
 import 'package:divergent_alliance/screens/weather_center_pro.dart';
 
@@ -26,6 +26,7 @@ class WeatherCenterGate extends StatelessWidget {
       ),
     );
   }
+
   // Added by force-weather-center-routing.ps1
   void _onPinOk(BuildContext context) {
     Navigator.of(context).pop(true);

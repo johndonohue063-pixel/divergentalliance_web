@@ -26,10 +26,11 @@ class WcFilters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final labelStyle = theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFA2A7B5));
+    final labelStyle =
+        theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFA2A7B5));
     final chipTextStyle = theme.textTheme.bodyMedium;
 
-    Widget chip(String text, bool selected, VoidCallback onTap){
+    Widget chip(String text, bool selected, VoidCallback onTap) {
       return InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -38,7 +39,11 @@ class WcFilters extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF17181C),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: selected ? const Color(0xFF4F8CFF) : const Color(0xFF2A2D35), width: selected ? 2 : 1),
+            border: Border.all(
+                color: selected
+                    ? const Color(0xFF4F8CFF)
+                    : const Color(0xFF2A2D35),
+                width: selected ? 2 : 1),
           ),
           child: Text(text, style: chipTextStyle),
         ),
@@ -56,7 +61,8 @@ class WcFilters extends StatelessWidget {
           runSpacing: 8,
           children: [
             chip("✓ Gust", gustSelected, () => onGustChanged(!gustSelected)),
-            chip("✓ Sustained", sustainedSelected, () => onSustainedChanged(!sustainedSelected)),
+            chip("✓ Sustained", sustainedSelected,
+                () => onSustainedChanged(!sustainedSelected)),
           ],
         ),
         const SizedBox(height: 16),
@@ -67,9 +73,10 @@ class WcFilters extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: List.generate(5, (i){
+          children: List.generate(5, (i) {
             final n = i + 1;
-            return chip("Min Sev $n", minSeverity == n, () => onMinSeverityChanged(n));
+            return chip(
+                "Min Sev $n", minSeverity == n, () => onMinSeverityChanged(n));
           }),
         ),
         const SizedBox(height: 16),

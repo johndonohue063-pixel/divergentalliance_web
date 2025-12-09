@@ -97,15 +97,15 @@ class WxCounty {
   final double maxSustained;
   final double probability; // 0..0.95
   final int crews;
-  final int severity;       // 0..4
-  final int confidence;     // 0..100
+  final int severity; // 0..4
+  final int confidence; // 0..100
   final int population;
   final int predictedCustomersOut;
   final DateTime? generatedAt;
   final DateTime? upstreamStamp;
   final String source;
   final String windDirection;
-  final int threatIndex;      // 0..100 Divergent Threat Index
+  final int threatIndex; // 0..100 Divergent Threat Index
   final bool directionAnomaly;
 
   WxCounty({
@@ -257,8 +257,7 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
 
       final List<dynamic> decoded = jsonDecode(resp.body) as List<dynamic>;
       final List<WxCounty> parsed = decoded
-          .map((dynamic e) =>
-              WxCounty.fromJson(e as Map<String, dynamic>))
+          .map((dynamic e) => WxCounty.fromJson(e as Map<String, dynamic>))
           .toList();
 
       setState(() {
@@ -278,12 +277,11 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
     }
   }
 
-  int get _totalPredictedOut =>
-      _rows.fold<int>(0, (int acc, WxCounty r) => acc + r.predictedCustomersOut);
+  int get _totalPredictedOut => _rows.fold<int>(
+      0, (int acc, WxCounty r) => acc + r.predictedCustomersOut);
   int get _totalCrews =>
       _rows.fold<int>(0, (int acc, WxCounty r) => acc + r.crews);
-  int get _elevatedCount =>
-      _rows.where((WxCounty r) => r.severity >= 2).length;
+  int get _elevatedCount => _rows.where((WxCounty r) => r.severity >= 2).length;
 
   double get _maxGustState {
     if (_rows.isEmpty) return 0.0;
@@ -415,8 +413,7 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
             dropdownColor: const Color(0xFF111317),
             items: kStates
                 .map(
-                  (MapEntry<String, String> e) =>
-                      DropdownMenuItem<String>(
+                  (MapEntry<String, String> e) => DropdownMenuItem<String>(
                     value: e.key,
                     child: Text("${e.value} (${e.key})"),
                   ),
@@ -497,8 +494,8 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
     final double gust = _maxGustState;
     final int crews = _totalCrews;
 
-    final double width = WidgetsBinding.instance.platformDispatcher.views.first
-        .physicalSize.width /
+    final double width = WidgetsBinding
+            .instance.platformDispatcher.views.first.physicalSize.width /
         WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
 
     final double cardWidth =
@@ -639,11 +636,10 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
         child: Column(
           children: <Widget>[
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
                 color: Colors.black.withOpacity(0.85),
               ),
               child: Row(
@@ -662,8 +658,8 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
             ),
             Expanded(
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(16)),
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(16)),
                 child: Container(
                   color: Colors.black,
                   child: InteractiveViewer(
@@ -673,9 +669,8 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
                       radarUrl,
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
-                      errorBuilder:
-                          (BuildContext context, Object error,
-                              StackTrace? stackTrace) {
+                      errorBuilder: (BuildContext context, Object error,
+                          StackTrace? stackTrace) {
                         return const Center(
                           child: Text(
                             "Radar unavailable",
@@ -789,8 +784,9 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
         .where((WxCounty r) => r.threatIndex >= _threatFilterMin)
         .toList(growable: false);
 
-    final List<Widget> cards =
-        rows.map<Widget>((WxCounty r) => _buildCountyCard(r)).toList(growable: false);
+    final List<Widget> cards = rows
+        .map<Widget>((WxCounty r) => _buildCountyCard(r))
+        .toList(growable: false);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -1222,9 +1218,6 @@ class _HalfDialPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HalfDialPainter oldDelegate) {
-    return oldDelegate.fraction != fraction ||
-        oldDelegate.arcColor != arcColor;
+    return oldDelegate.fraction != fraction || oldDelegate.arcColor != arcColor;
   }
 }
-
-

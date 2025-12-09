@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class WeatherCenterResults extends StatefulWidget {
   const WeatherCenterResults({
@@ -155,8 +155,7 @@ class _WeatherCenterResultsState extends State<WeatherCenterResults> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
                           color: _kPanel,
                           borderRadius: BorderRadius.circular(8),

@@ -21,7 +21,13 @@ class DAButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget content = child ?? Text(label ?? '', style: const TextStyle(fontWeight: FontWeight.w700));
-    return SparkButton(onPressed: onPressed, child: content, height: height, width: width, borderRadius: borderRadius);
+    final Widget content = child ??
+        Text(label ?? '', style: const TextStyle(fontWeight: FontWeight.w700));
+    return SparkButton(
+        onPressed: onPressed,
+        child: content,
+        height: height,
+        width: width,
+        borderRadius: borderRadius);
   }
 }

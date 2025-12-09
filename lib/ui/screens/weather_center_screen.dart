@@ -69,13 +69,18 @@ class _WeatherCenterScreenState extends State<WeatherCenterScreen> {
     try {
       final locEnabled = await Geolocator.isLocationServiceEnabled();
       LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
         perm = await Geolocator.requestPermission();
       }
-      if (!locEnabled || (perm == LocationPermission.denied || perm == LocationPermission.deniedForever)) {
-        throw Exception('Location permission is required for accurate weather.');
+      if (!locEnabled ||
+          (perm == LocationPermission.denied ||
+              perm == LocationPermission.deniedForever)) {
+        throw Exception(
+            'Location permission is required for accurate weather.');
       }
-      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
       _lat = pos.latitude;
       _lon = pos.longitude;
 
@@ -113,7 +118,8 @@ class _WeatherCenterScreenState extends State<WeatherCenterScreen> {
     return src.where((p) {
       if (p.startTime.isAfter(limit)) return false;
       if (_filters.precipOnly && ((p.pop ?? 0) <= 0)) return false;
-      if (_filters.windMinMph > 0 && !isWindAbove(p.windSpeed, _filters.windMinMph)) return false;
+      if (_filters.windMinMph > 0 &&
+          !isWindAbove(p.windSpeed, _filters.windMinMph)) return false;
       return true;
     }).toList();
   }
@@ -153,7 +159,10 @@ class _WeatherCenterScreenState extends State<WeatherCenterScreen> {
                       MaterialBanner(
                         backgroundColor: Colors.amber.shade100,
                         content: Text(
-                          _alerts.map((a) => a.event).toSet().join(' ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ '),
+                          _alerts
+                              .map((a) => a.event)
+                              .toSet()
+                              .join(' ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ '),
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         actions: [
@@ -200,23 +209,30 @@ class _WeatherCenterScreenState extends State<WeatherCenterScreen> {
                           ..._applyFilters(_hourly).map((p) {
                             return ListTile(
                               leading: Icon(
-                                (p.pop ?? 0) >= 50 ? Icons.umbrella : Icons.wb_sunny_outlined,
+                                (p.pop ?? 0) >= 50
+                                    ? Icons.umbrella
+                                    : Icons.wb_sunny_outlined,
                               ),
-                              title: Text('${df.format(p.startTime.toLocal())} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${p.shortForecast}'),
-                              subtitle: Text('Wind ${p.windDirection} ${p.windSpeed}'
+                              title: Text(
+                                  '${df.format(p.startTime.toLocal())} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${p.shortForecast}'),
+                              subtitle: Text(
+                                  'Wind ${p.windDirection} ${p.windSpeed}'
                                   '${(p.pop ?? 0) > 0 ? ' ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ POP ${(p.pop ?? 0).round()}%' : ''}'),
-                              trailing: Text(_fmtTemp(p.temperature, p.temperatureUnit)),
+                              trailing: Text(
+                                  _fmtTemp(p.temperature, p.temperatureUnit)),
                             );
                           }),
                           const Divider(),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Text('Extended', style: Theme.of(context).textTheme.titleMedium),
+                            child: Text('Extended',
+                                style: Theme.of(context).textTheme.titleMedium),
                           ),
                           const SizedBox(height: 8),
                           ..._applyFilters(_forecast).map((p) => ListTile(
                                 title: Text('${p.name}: ${p.shortForecast}'),
-                                trailing: Text(_fmtTemp(p.temperature, p.temperatureUnit)),
+                                trailing: Text(
+                                    _fmtTemp(p.temperature, p.temperatureUnit)),
                               )),
                         ],
                       ),
@@ -262,10 +278,13 @@ class _FiltersBar extends StatelessWidget {
           onSelected: (s) => onChanged(value.copyWith(precipOnly: s)),
         ),
         FilterChip(
-          label: Text('Wind ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€šÃ‚Â¥ ${value.windMinMph.round()} mph'),
+          label: Text(
+              'Wind ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€šÃ‚Â¥ ${value.windMinMph.round()} mph'),
           selected: value.windMinMph > 0,
           onSelected: (s) => onChanged(value.copyWith(windMinMph: s ? 20 : 0)),
-          onDeleted: value.windMinMph > 0 ? () => onChanged(value.copyWith(windMinMph: 0)) : null,
+          onDeleted: value.windMinMph > 0
+              ? () => onChanged(value.copyWith(windMinMph: 0))
+              : null,
         ),
         FilterChip(
           label: const Text('Alerts only'),

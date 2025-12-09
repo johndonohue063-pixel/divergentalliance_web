@@ -1,7 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-
 
 /// Wood + metal sprite button. Renders your PNG end-to-end (no cropping),
 /// accepts the same named args your screen already passes.
@@ -13,10 +11,11 @@ class WeatheredCircuitButton extends StatelessWidget {
     this.icon,
     this.width = 240,
     this.height = 64,
-    this.borderThickness = 0,                                   // kept for API compatibility
-    this.woodTextureAsset = "assets/images/weathered_circuit_button_transparent.png",
+    this.borderThickness = 0, // kept for API compatibility
+    this.woodTextureAsset =
+        "assets/images/weathered_circuit_button_transparent.png",
     this.textColor = Colors.white,
-    this.spriteAspect = 3.8,                                    // sprite width / height; tweak if needed
+    this.spriteAspect = 3.8, // sprite width / height; tweak if needed
   });
 
   final String label;
@@ -48,7 +47,8 @@ class WeatheredCircuitButton extends StatelessWidget {
             fit: BoxFit.fill,
             alignment: Alignment.center,
             filterQuality: FilterQuality.medium,
-            errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF2B211A)),
+            errorBuilder: (_, __, ___) =>
+                const ColoredBox(color: Color(0xFF2B211A)),
           ),
         ),
       ),
@@ -84,7 +84,6 @@ class WeatheredCircuitButton extends StatelessWidget {
                     ),
                   ],
                 ),
-
               ),
             ],
           ),

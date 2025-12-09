@@ -8,7 +8,6 @@ import 'shop_under_construction.dart';
 import 'package:divergent_alliance/screens/weather_center_gate.dart' as gate;
 import 'package:divergent_alliance/screens/weather_center_pro.dart';
 
-
 class DevMenu extends StatelessWidget {
   const DevMenu({super.key});
 

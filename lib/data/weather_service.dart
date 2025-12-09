@@ -10,7 +10,8 @@ class NwsService {
 
   NwsService({http.Client? client, String? userAgent})
       : _client = client ?? http.Client(),
-        _ua = userAgent ?? 'DivergentAllianceApp/1.0 (support@divergent-alliance.example)';
+        _ua = userAgent ??
+            'DivergentAllianceApp/1.0 (support@divergent-alliance.example)';
 
   Map<String, String> get _headers => {
         'Accept': 'application/geo+json',
@@ -149,7 +150,6 @@ class NwsAlert {
         description: m['description'] ?? '',
         effective:
             m['effective'] != null ? DateTime.tryParse(m['effective']) : null,
-        expires:
-            m['expires'] != null ? DateTime.tryParse(m['expires']) : null,
+        expires: m['expires'] != null ? DateTime.tryParse(m['expires']) : null,
       );
 }

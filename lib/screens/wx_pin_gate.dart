@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../ui/da_brand.dart';
 
 class WxPinGateScreen extends StatefulWidget {

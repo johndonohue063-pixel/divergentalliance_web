@@ -4,7 +4,7 @@ class ForecastSample {
   final DateTime ts;
   final double sustainedMph;
   final double gustMph;
-  final String source;   // e.g. HRRR, GFS, NBM, NWS, ECMWF
+  final String source; // e.g. HRRR, GFS, NBM, NWS, ECMWF
   ForecastSample(this.ts, this.sustainedMph, this.gustMph, this.source);
 }
 
@@ -14,7 +14,7 @@ class ForecastAggregate {
   final double avgSustainedMph;
   final double avgGustMph;
   final double expectedSustainedMph; // trimmed mean
-  final double expectedGustMph;       // trimmed mean
+  final double expectedGustMph; // trimmed mean
   final Map<String, double> sourceWeights; // for transparency
   ForecastAggregate({
     required this.windowStart,
@@ -29,7 +29,8 @@ class ForecastAggregate {
 
 class GeoProfile {
   final String name; // county or valley
-  final double orographicShieldFactor; // 0 to 1, multiply wind for shielded directions
+  final double
+      orographicShieldFactor; // 0 to 1, multiply wind for shielded directions
   final List<DirectionalRule> rules;
   GeoProfile({
     required this.name,
@@ -40,7 +41,7 @@ class GeoProfile {
 
 class DirectionalRule {
   final double fromDeg; // inclusive
-  final double toDeg;   // inclusive
+  final double toDeg; // inclusive
   final double multiplier; // e.g. 0.8 west events into Champlain
   const DirectionalRule(this.fromDeg, this.toDeg, this.multiplier);
   bool matches(double deg) {
@@ -101,13 +102,15 @@ class WxFusionEngine {
     }
 
     // equal weight per source by default
-    final weights = <String, double>{ for (final k in bySource.keys) k: 1.0 };
+    final weights = <String, double>{for (final k in bySource.keys) k: 1.0};
     final sustainedVals = <double>[];
     final gustVals = <double>[];
 
     bySource.forEach((_, list) {
-      final sAvg = list.map((e) => e.sustainedMph).reduce((a, b) => a + b) / list.length;
-      final gAvg = list.map((e) => e.gustMph).reduce((a, b) => a + b) / list.length;
+      final sAvg =
+          list.map((e) => e.sustainedMph).reduce((a, b) => a + b) / list.length;
+      final gAvg =
+          list.map((e) => e.gustMph).reduce((a, b) => a + b) / list.length;
       sustainedVals.add(sAvg);
       gustVals.add(gAvg);
     });

@@ -14,7 +14,7 @@ class AppSplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Colors.black,  // full black, no white
+      backgroundColor: Colors.black, // full black, no white
       body: Center(
         child: CircleAvatar(
           radius: 80,

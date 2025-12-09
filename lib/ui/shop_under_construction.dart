@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class ShopUnderConstruction extends StatelessWidget {
   const ShopUnderConstruction({super.key});
@@ -32,7 +32,8 @@ class ShopUnderConstruction extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 32.0),
               child: Text(
-                'We''re wiring up a high-voltage tooling and PPE catalog. '
+                'We'
+                're wiring up a high-voltage tooling and PPE catalog. '
                 'For storm-truck kits, conduit or hot-stick tools, contact Divergent Alliance directly.',
                 textAlign: TextAlign.center,
                 style: TextStyle(

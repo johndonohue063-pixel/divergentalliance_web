@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:divergent_alliance/services/wx_backend_service.dart';
 import 'package:divergent_alliance/screens/weather_center_drilldown.dart';
 
@@ -110,91 +110,92 @@ class _WeatherResultsState extends State<WeatherResults> {
     _load();
   }
 
-  Future<void> _load() async {
-    try {
-      if (mounted) {
-        setState(() => loading = true);
-      }
-
-      List<Map<String, dynamic>> data = [];
-
-      // PRIMARY QUERY
-      if (widget.isNational) {
-        data = await WxBackendService.fetchNationwide(
-          hours: widget.hoursOut,
-        );
-      } else if (widget.region.isNotEmpty) {
-        // Region first
-        data = await WxBackendService.fetchRegion(
-          region: widget.region,
-          hours: widget.hoursOut,
-        );
-
-        // FALLBACK: if region comes back empty, try mapped region from state, then nationwide
-        if (data.isEmpty && widget.state.isNotEmpty) {
-          final String? mappedRegion = _stateToRegion[widget.state];
-          if (mappedRegion != null && mappedRegion.isNotEmpty) {
-            final byStateRegion = await WxBackendService.fetchRegion(
-              region: mappedRegion,
-              hours: widget.hoursOut,
-            );
-            if (byStateRegion.isNotEmpty) {
-              data = byStateRegion;
-            }
-          }
-        }
-
-        if (data.isEmpty) {
-          final nationwide = await WxBackendService.fetchNationwide(
-            hours: widget.hoursOut,
-          );
-          if (nationwide.isNotEmpty) {
-            data = nationwide;
-          }
-        }
-      } else if (widget.state.isNotEmpty) {
-        // State first
-        data = await WxBackendService.fetchState(
-          state: widget.state,
-          hours: widget.hoursOut,
-        );
-
-        // FALLBACK: if state comes back empty, try its region, then nationwide
-        if (data.isEmpty) {
-          final String? mappedRegion = _stateToRegion[widget.state];
-          if (mappedRegion != null && mappedRegion.isNotEmpty) {
-            final byRegion = await WxBackendService.fetchRegion(
-              region: mappedRegion,
-              hours: widget.hoursOut,
-            );
-            if (byRegion.isNotEmpty) {
-              data = byRegion;
-            }
-          }
-        }
-
-        if (data.isEmpty) {
-          final nationwide = await WxBackendService.fetchNationwide(
-            hours: widget.hoursOut,
-          );
-          if (nationwide.isNotEmpty) {
-            data = nationwide;
-          }
-        }
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        rows = data;
-        loading = false;
-      });
-    } finally {
-      if (mounted) {
-        setState(() => loading = false);
-      }
-    }
+  Future<void> _load() async {
+    try {
+      if (mounted) {
+        setState(() => loading = true);
+      }
+
+      List<Map<String, dynamic>> data = [];
+
+      // PRIMARY QUERY
+      if (widget.isNational) {
+        data = await WxBackendService.fetchNationwide(
+          hours: widget.hoursOut,
+        );
+      } else if (widget.region.isNotEmpty) {
+        // Region first
+        data = await WxBackendService.fetchRegion(
+          region: widget.region,
+          hours: widget.hoursOut,
+        );
+
+        // FALLBACK: if region comes back empty, try mapped region from state, then nationwide
+        if (data.isEmpty && widget.state.isNotEmpty) {
+          final String? mappedRegion = _stateToRegion[widget.state];
+          if (mappedRegion != null && mappedRegion.isNotEmpty) {
+            final byStateRegion = await WxBackendService.fetchRegion(
+              region: mappedRegion,
+              hours: widget.hoursOut,
+            );
+            if (byStateRegion.isNotEmpty) {
+              data = byStateRegion;
+            }
+          }
+        }
+
+        if (data.isEmpty) {
+          final nationwide = await WxBackendService.fetchNationwide(
+            hours: widget.hoursOut,
+          );
+          if (nationwide.isNotEmpty) {
+            data = nationwide;
+          }
+        }
+      } else if (widget.state.isNotEmpty) {
+        // State first
+        data = await WxBackendService.fetchState(
+          state: widget.state,
+          hours: widget.hoursOut,
+        );
+
+        // FALLBACK: if state comes back empty, try its region, then nationwide
+        if (data.isEmpty) {
+          final String? mappedRegion = _stateToRegion[widget.state];
+          if (mappedRegion != null && mappedRegion.isNotEmpty) {
+            final byRegion = await WxBackendService.fetchRegion(
+              region: mappedRegion,
+              hours: widget.hoursOut,
+            );
+            if (byRegion.isNotEmpty) {
+              data = byRegion;
+            }
+          }
+        }
+
+        if (data.isEmpty) {
+          final nationwide = await WxBackendService.fetchNationwide(
+            hours: widget.hoursOut,
+          );
+          if (nationwide.isNotEmpty) {
+            data = nationwide;
+          }
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        rows = data;
+        loading = false;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
+    }
   }
+
   int _levelOf(Map<String, dynamic> r) {
     return int.tryParse(r["severity"].toString()) ?? 0;
   }
@@ -209,9 +210,6 @@ class _WeatherResultsState extends State<WeatherResults> {
   List<Map<String, dynamic>> get noZeroRows {
     return rows;
   }
-
-
-
 
   List<Map<String, dynamic>> get filteredRows {
     final list = noZeroRows;

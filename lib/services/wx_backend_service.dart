@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'dart:async';
@@ -18,37 +18,21 @@ class WxBackendService {
   // Render backend base URL – single source of truth.
   static const String _baseUrl = 'https://da-wx-backend-1.onrender.com/api/wx';
   static const Map<String, List<String>> _regionStates = {
-
     'Midwest': <String>[
-
       'Ohio',
-
       'Michigan',
-
       'Indiana',
-
       'Illinois',
-
       'Wisconsin',
-
       'Minnesota',
-
       'Iowa',
-
       'Missouri',
-
       'North Dakota',
-
       'South Dakota',
-
       'Nebraska',
-
       'Kansas',
-
     ],
-
   };
-
 
   /// Nationwide (no region) – default sample size = 80
   static Future<List<Map<String, dynamic>>> fetchNationwide({
@@ -68,29 +52,20 @@ class WxBackendService {
   /// if the backend returns no rows.
 
   static Future<List<Map<String, dynamic>>> fetchRegion({
-
     required String region,
-
     int hours = 24,
-
     int sample = 25,
-
   }) async {
-
     // Primary: backend region endpoint.
 
     final uri = Uri.parse(
-
       "$_baseUrl?mode=Region&region=$region&hours=$hours&sample=$sample",
-
     );
 
     final primary = await _fetch(uri);
 
     if (primary.isNotEmpty) {
-
       return primary;
-
     }
 
     // Fallback: aggregate via states that belong to this region.
@@ -98,41 +73,27 @@ class WxBackendService {
     final states = _regionStates[region];
 
     if (states == null || states.isEmpty) {
-
       return primary;
-
     }
 
     final List<Map<String, dynamic>> combined = [];
 
     for (final s in states) {
-
       try {
-
         final rows = await fetchState(
-
           state: s,
-
           hours: hours,
-
           sample: sample,
-
         );
 
         combined.addAll(rows);
-
       } catch (_) {
-
         // Ignore individual state failures in fallback.
-
       }
-
     }
 
     return combined;
-
   }
-
 
   /// Single‑state view – slightly smaller sample by default.
   static Future<List<Map<String, dynamic>>> fetchState({
@@ -182,8 +143,6 @@ class WxBackendService {
     }
   }
 
-
-
   /// Normalize the backend record into the exact shape the UI expects.
   ///
   /// This keeps backwards compatibility with previous field names and
@@ -200,12 +159,9 @@ class WxBackendService {
             "")
         .toString();
 
-    final state = (r["State"] ??
-            r["state"] ??
-            r["state_name"] ??
-            r["stateName"] ??
-            "")
-        .toString();
+    final state =
+        (r["State"] ?? r["state"] ?? r["state_name"] ?? r["stateName"] ?? "")
+            .toString();
 
     // Severity – support multiple possible keys and clamp to 0–3.
     final rawSeverity = r["Severity"] ??
@@ -255,8 +211,7 @@ class WxBackendService {
       r["Probability"] ?? r["probability"] ?? r["prob"],
     );
 
-    final population =
-        r["Population"] ?? r["population"] ?? r["pop"] ?? 0;
+    final population = r["Population"] ?? r["population"] ?? r["pop"] ?? 0;
 
     // Crews
     final crews = (r["Crews"] ??
@@ -298,7 +253,6 @@ class WxBackendService {
     };
   }
 
-
   // Exposed helpers so UI can use normalized rows from backend
   static Map<String, dynamic> normalizeRow(dynamic raw) => _normalizeRow(raw);
 
@@ -309,6 +263,7 @@ class WxBackendService {
     if (v is num) return v.toDouble();
     return double.tryParse(v.toString()) ?? 0.0;
   }
+
   // ---------------------------------------------------------------------------
   // Warm-up ping to wake the Render backend (safe, silent, fire-and-forget)
   // ---------------------------------------------------------------------------
@@ -325,7 +280,3 @@ class WxBackendService {
     }
   }
 }
-
-
-
-

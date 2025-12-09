@@ -9,13 +9,21 @@ class WxProCounty {
   final String state;
   final double lat;
   final double lon;
-  const WxProCounty({required this.fips, required this.name, required this.state, required this.lat, required this.lon});
+  const WxProCounty(
+      {required this.fips,
+      required this.name,
+      required this.state,
+      required this.lat,
+      required this.lon});
 }
 
 const List<WxProCounty> wxProCounties = [
-  WxProCounty(fips:'17031', name:'Cook',      state:'IL', lat:41.84, lon:-87.65),
-  WxProCounty(fips:'36061', name:'New York',  state:'NY', lat:40.78, lon:-73.97),
-  WxProCounty(fips:'12086', name:'Miami-Dade',state:'FL', lat:25.61, lon:-80.53),
+  WxProCounty(
+      fips: '17031', name: 'Cook', state: 'IL', lat: 41.84, lon: -87.65),
+  WxProCounty(
+      fips: '36061', name: 'New York', state: 'NY', lat: 40.78, lon: -73.97),
+  WxProCounty(
+      fips: '12086', name: 'Miami-Dade', state: 'FL', lat: 25.61, lon: -80.53),
 ];
 
 class WxProRow {
@@ -27,7 +35,7 @@ class WxProRow {
   WxProRow(this.county, this.gust, this.sustained, this.severity, this.crew);
 }
 
-int wxProSeverityFor(double gust, double sustained){
+int wxProSeverityFor(double gust, double sustained) {
   final s = gust >= sustained ? gust : sustained;
   if (s >= 75) return 5;
   if (s >= 58) return 4;
@@ -37,7 +45,7 @@ int wxProSeverityFor(double gust, double sustained){
   return 0;
 }
 
-int wxProCrewFor(int severity, double mph){
+int wxProCrewFor(int severity, double mph) {
   if (severity == 0) return 0;
   if (severity == 1) return 1;
   if (severity == 2) return 2;
@@ -46,7 +54,7 @@ int wxProCrewFor(int severity, double mph){
   return 8;
 }
 
-void wxProRunReport(BuildContext context){
+void wxProRunReport(BuildContext context) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -67,8 +75,8 @@ class _WxProRunSheetState extends State<WxProRunSheet> {
   int _minSeverity = 0;
 
   List<WxProRow> _rows = [];
-  double _expG = 0, _expS = 0; 
-  int _maxSev = 0; 
+  double _expG = 0, _expS = 0;
+  int _maxSev = 0;
   int _crew = 0;
 
   @override
@@ -78,38 +86,54 @@ class _WxProRunSheetState extends State<WxProRunSheet> {
   }
 
   Future<void> _run() async {
-    setState((){ _busy = true; _rows = []; _expG=0; _expS=0; _maxSev=0; _crew=0;});
+    setState(() {
+      _busy = true;
+      _rows = [];
+      _expG = 0;
+      _expS = 0;
+      _maxSev = 0;
+      _crew = 0;
+    });
     try {
       final List<WxProRow> rows = [];
-      double g=0, s=0; int sev=0;
+      double g = 0, s = 0;
+      int sev = 0;
 
       for (final c in wxProCounties) {
-        final w = await WxService.fetchWind(lat:c.lat, lon:c.lon, windowHours:_windowHours);
+        final w = await WxService.fetchWind(
+            lat: c.lat, lon: c.lon, windowHours: _windowHours);
         final sLevel = wxProSeverityFor(w.maxGustMph, w.maxSustainedMph);
         if (sLevel < _minSeverity) continue;
-        final crews = wxProCrewFor(sLevel, (w.maxGustMph >= w.maxSustainedMph ? w.maxGustMph : w.maxSustainedMph));
+        final crews = wxProCrewFor(
+            sLevel,
+            (w.maxGustMph >= w.maxSustainedMph
+                ? w.maxGustMph
+                : w.maxSustainedMph));
         rows.add(WxProRow(c, w.maxGustMph, w.maxSustainedMph, sLevel, crews));
         if (w.maxGustMph > g) g = w.maxGustMph;
         if (w.maxSustainedMph > s) s = w.maxSustainedMph;
         if (sLevel > sev) sev = sLevel;
       }
 
-      rows.sort((a,b){
+      rows.sort((a, b) {
         final av = _metric == WindMetric.gust ? a.gust : a.sustained;
         final bv = _metric == WindMetric.gust ? b.gust : b.sustained;
         return bv.compareTo(av);
       });
 
-      setState((){
+      setState(() {
         _rows = rows;
-        _expG = g; _expS = s; _maxSev = sev; 
+        _expG = g;
+        _expS = s;
+        _maxSev = sev;
         _crew = rows.isNotEmpty ? rows.first.crew : 0;
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Run failed: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Run failed: $e')));
     } finally {
-      if (mounted) setState(()=> _busy = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -117,79 +141,115 @@ class _WxProRunSheetState extends State<WxProRunSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16,16,16,24),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         child: SingleChildScrollView(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               const Icon(Icons.play_arrow),
-              const SizedBox(width:8),
-              const Text('Run Report', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(width: 8),
+              const Text('Run Report',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const Spacer(),
-              IconButton(onPressed: _busy ? null : _run, icon: const Icon(Icons.refresh)),
+              IconButton(
+                  onPressed: _busy ? null : _run,
+                  icon: const Icon(Icons.refresh)),
             ]),
-            const SizedBox(height:8),
-            Wrap(spacing:12, runSpacing:12, children: [
-              _tile('Expected Gust','${_expG.toStringAsFixed(0)} mph', Icons.air),
-              _tile('Expected Sust.','${_expS.toStringAsFixed(0)} mph', Icons.wind_power),
-              _tile('Severity','Level $_maxSev', Icons.warning_amber),
-              _tile('Crew Rec','$_crew crews', Icons.groups),
+            const SizedBox(height: 8),
+            Wrap(spacing: 12, runSpacing: 12, children: [
+              _tile('Expected Gust', '${_expG.toStringAsFixed(0)} mph',
+                  Icons.air),
+              _tile('Expected Sust.', '${_expS.toStringAsFixed(0)} mph',
+                  Icons.wind_power),
+              _tile('Severity', 'Level $_maxSev', Icons.warning_amber),
+              _tile('Crew Rec', '$_crew crews', Icons.groups),
             ]),
-            const SizedBox(height:12),
-
-            const Text('Filters', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height:8),
+            const SizedBox(height: 12),
+            const Text('Filters',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
             const Text('Wind Metric'),
-            Wrap(spacing:8, children:[
-              ChoiceChip(label: const Text('Gust'), selected: _metric == WindMetric.gust, onSelected: (_){ setState(()=>_metric=WindMetric.gust); _run(); }),
-              ChoiceChip(label: const Text('Sustained'), selected: _metric == WindMetric.sustained, onSelected: (_){ setState(()=>_metric=WindMetric.sustained); _run(); }),
+            Wrap(spacing: 8, children: [
+              ChoiceChip(
+                  label: const Text('Gust'),
+                  selected: _metric == WindMetric.gust,
+                  onSelected: (_) {
+                    setState(() => _metric = WindMetric.gust);
+                    _run();
+                  }),
+              ChoiceChip(
+                  label: const Text('Sustained'),
+                  selected: _metric == WindMetric.sustained,
+                  onSelected: (_) {
+                    setState(() => _metric = WindMetric.sustained);
+                    _run();
+                  }),
             ]),
-            const SizedBox(height:8),
+            const SizedBox(height: 8),
             const Text('Minimum Threat Level'),
-            Wrap(spacing:8, children: List<Widget>.generate(6, (i) => ChoiceChip(
-              label: Text('Min Sev $i'),
-              selected: _minSeverity==i,
-              onSelected: (_){ setState(()=>_minSeverity=i); _run(); },
-            ))),
-            const SizedBox(height:8),
-            Row(children:[
+            Wrap(
+                spacing: 8,
+                children: List<Widget>.generate(
+                    6,
+                    (i) => ChoiceChip(
+                          label: Text('Min Sev $i'),
+                          selected: _minSeverity == i,
+                          onSelected: (_) {
+                            setState(() => _minSeverity = i);
+                            _run();
+                          },
+                        ))),
+            const SizedBox(height: 8),
+            Row(children: [
               const Text('Window (hours)'),
-              Expanded(child: Slider(
+              Expanded(
+                  child: Slider(
                 value: _windowHours.toDouble(),
-                min: 12, max: 168, divisions: 13, label: '$_windowHours',
-                onChanged: (v)=> setState(()=> _windowHours = v.round()),
-                onChangeEnd: (_)=> _run(),
+                min: 12,
+                max: 168,
+                divisions: 13,
+                label: '$_windowHours',
+                onChanged: (v) => setState(() => _windowHours = v.round()),
+                onChangeEnd: (_) => _run(),
               )),
               Text('$_windowHours'),
             ]),
-            const SizedBox(height:12),
-
-            if (_busy) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator())),
-            if (!_busy) _rows.isEmpty
-              ? const Text('No results match the filters.')
-              : ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _rows.length,
-                  separatorBuilder: (_, __) => const Divider(height:1),
-                  itemBuilder: (_, i){
-                    final r = _rows[i];
-                    return ListTile(
-                      dense: true,
-                      title: Text('${r.county.name}, ${r.county.state}'),
-                      subtitle: Text('Gust: ${r.gust.toStringAsFixed(0)} mph  •  Sustained: ${r.sustained.toStringAsFixed(0)} mph'),
-                      trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text('Sev ${r.severity}'),
-                        Text('${r.crew} crews'),
-                      ]),
-                    );
-                  }),
+            const SizedBox(height: 12),
+            if (_busy)
+              const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator())),
+            if (!_busy)
+              _rows.isEmpty
+                  ? const Text('No results match the filters.')
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _rows.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        final r = _rows[i];
+                        return ListTile(
+                          dense: true,
+                          title: Text('${r.county.name}, ${r.county.state}'),
+                          subtitle: Text(
+                              'Gust: ${r.gust.toStringAsFixed(0)} mph  •  Sustained: ${r.sustained.toStringAsFixed(0)} mph'),
+                          trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text('Sev ${r.severity}'),
+                                Text('${r.crew} crews'),
+                              ]),
+                        );
+                      }),
           ]),
         ),
       ),
     );
   }
 
-  Widget _tile(String label, String value, IconData icon){
+  Widget _tile(String label, String value, IconData icon) {
     return Container(
       width: 160,
       padding: const EdgeInsets.all(12),
@@ -197,13 +257,17 @@ class _WxProRunSheetState extends State<WxProRunSheet> {
         borderRadius: BorderRadius.circular(12),
         color: Colors.black.withOpacity(0.15),
       ),
-      child: Row(children:[
+      child: Row(children: [
         Icon(icon),
-        const SizedBox(width:8),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
+        const SizedBox(width: 8),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label),
-          const SizedBox(height:4),
-          Text(value, style: const TextStyle(fontSize:16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(value,
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ])),
       ]),
     );

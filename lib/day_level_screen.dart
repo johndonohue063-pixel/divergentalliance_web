@@ -57,8 +57,8 @@ class DayLevelItem {
   final String id;
   final DateTime date;
   final String location; // could be "City, ST" or HFX unit, etc.
-  final String summary;  // short text about the day
-  final int? riskScore;  // nullable in case backend doesn’t send it
+  final String summary; // short text about the day
+  final int? riskScore; // nullable in case backend doesn’t send it
   final String? riskBand; // e.g. "Low", "Moderate", "Extreme"
 
   DayLevelItem({
@@ -462,8 +462,7 @@ class _DayLevelTile extends StatelessWidget {
         ),
         trailing: item.riskBand != null
             ? Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: riskColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(999),

@@ -1,14 +1,13 @@
-﻿/* lib/api.dart */
+/* lib/api.dart */
 import "dart:convert"; // Keep this since we're decoding JSON
 import "package:http/http.dart" as http;
 import "config.dart";
 
-const String apiBasePrimary =
-    "https://da-wx-backend-1.onrender.com"
+const String apiBasePrimary = "https://da-wx-backend-1.onrender.com"
     "/api/v1";
 
-
-Future<http.Response> _getWithFailover(Uri Function(String base) makeUri, {Duration timeout = const Duration(seconds: 60)}) async {
+Future<http.Response> _getWithFailover(Uri Function(String base) makeUri,
+    {Duration timeout = const Duration(seconds: 60)}) async {
   final bases = <String>[apiBasePrimary, ...apiBaseAlternates];
   Object? lastError;
 
@@ -26,9 +25,13 @@ Future<http.Response> _getWithFailover(Uri Function(String base) makeUri, {Durat
   throw Exception("All bases failed: $lastError");
 }
 
-Future<List<dynamic>> fetchStateReport({String state = "TX", int hours = 36, String metric = "wind", double threshold = 22}) async {
-  http.Response resp = await _getWithFailover((base) =>
-      Uri.parse("$base/report/state?state=$state&hours=$hours&metric=$metric&threshold=$threshold"));
+Future<List<dynamic>> fetchStateReport(
+    {String state = "TX",
+    int hours = 36,
+    String metric = "wind",
+    double threshold = 22}) async {
+  http.Response resp = await _getWithFailover((base) => Uri.parse(
+      "$base/report/state?state=$state&hours=$hours&metric=$metric&threshold=$threshold"));
 
   if (resp.statusCode == 200) {
     final data = json.decode(resp.body);
@@ -39,7 +42,12 @@ Future<List<dynamic>> fetchStateReport({String state = "TX", int hours = 36, Str
   }
 }
 
-Future<List<dynamic>> fetchNationalReport({int hours = 36, String metric = "wind", double threshold = 22, String? statesCsv, int capPerState = 60}) async {
+Future<List<dynamic>> fetchNationalReport(
+    {int hours = 36,
+    String metric = "wind",
+    double threshold = 22,
+    String? statesCsv,
+    int capPerState = 60}) async {
   final qp = <String, String>{
     "hours": "$hours",
     "metric": metric,
@@ -54,7 +62,11 @@ Future<List<dynamic>> fetchNationalReport({int hours = 36, String metric = "wind
     final b = StringBuffer("$base/report/national?");
     bool first = true;
     qp.forEach((k, v) {
-      if (!first) { b.write("&"); } else { first = false; }
+      if (!first) {
+        b.write("&");
+      } else {
+        first = false;
+      }
       b.write("$k=$v");
     });
     return Uri.parse(b.toString());
@@ -68,4 +80,3 @@ Future<List<dynamic>> fetchNationalReport({int hours = 36, String metric = "wind
     throw Exception("HTTP ${resp.statusCode}: ${resp.body}");
   }
 }
-

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'weather_center_pro.dart';
 
 const Color _vaultOrange = Color(0xFFFF7A00);
@@ -43,7 +43,7 @@ class _VaultPinScreenState extends State<VaultPinScreen> {
 
           // Increase boxTopFactor to move the digits further DOWN,
           // decrease to move them up.
-          const double boxTopFactor = 0.44;   // was ~0.41
+          const double boxTopFactor = 0.44; // was ~0.41
           const double boxHeightFactor = 0.28;
 
           final double boxTop = h * boxTopFactor;
@@ -124,39 +124,38 @@ class _VaultPinScreenState extends State<VaultPinScreen> {
   }
 
   Widget _buildPinDigits() {
-  final text = _controller.text;
+    final text = _controller.text;
 
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: List.generate(_pinLength, (index) {
-      final char = index < text.length ? text[index] : '0';
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_pinLength, (index) {
+        final char = index < text.length ? text[index] : '0';
 
-      return SizedBox(
-        width: 34,
-        child: Center(
-          child: Text(
-            char,
-            style: const TextStyle(
-              fontFamily: 'RobotoMono',
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-              color: _vaultOrange,
-              letterSpacing: 4,
-              // Remove the heavy blur:
-              // shadows: [
-              //   Shadow(
-              //     blurRadius: 12,
-              //     color: _vaultOrange,
-              //   ),
-              // ],
+        return SizedBox(
+          width: 34,
+          child: Center(
+            child: Text(
+              char,
+              style: const TextStyle(
+                fontFamily: 'RobotoMono',
+                fontSize: 32,
+                fontWeight: FontWeight.w700,
+                color: _vaultOrange,
+                letterSpacing: 4,
+                // Remove the heavy blur:
+                // shadows: [
+                //   Shadow(
+                //     blurRadius: 12,
+                //     color: _vaultOrange,
+                //   ),
+                // ],
+              ),
             ),
           ),
-        ),
-      );
-    }),
-  );
-}
-
+        );
+      }),
+    );
+  }
 
   void _onPinComplete(String pin) {
     if (_validPins.contains(pin)) {

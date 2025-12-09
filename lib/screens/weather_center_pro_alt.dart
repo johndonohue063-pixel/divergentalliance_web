@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 /// Alternative, more "3D" / high-tech visual for the state impact screen.
 /// This file does NOT contain your backend logic – it is a visual shell
