@@ -8,21 +8,23 @@ RUN apt-get update && apt-get install -y \
 # Install Flutter
 RUN git clone https://github.com/flutter/flutter.git /usr/local/flutter
 
-ENV PATH="/usr/local/flutter/bin:/usr/local/flutter/bin/cache/dart-sdk/bin:\"
+# Add Flutter and Dart to PATH
+ENV PATH="/usr/local/flutter/bin:/usr/local/flutter/bin/cache/dart-sdk/bin:${PATH}"
 
-# Enable web and precache
+# Enable web and precache web artifacts
 RUN flutter config --enable-web && \
     flutter precache --web
 
+# Set app working directory
 WORKDIR /app
 
-# Copy source
+# Copy project files
 COPY . .
 
 # Build Flutter web
 RUN flutter build web --release
 
-# Serve build/web with dhttpd (simple Dart HTTP server)
+# Serve build/web with a tiny HTTP server (dhttpd)
 RUN dart pub global activate dhttpd
 
 EXPOSE 8080
