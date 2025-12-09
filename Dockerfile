@@ -11,9 +11,12 @@ RUN git clone https://github.com/flutter/flutter.git /usr/local/flutter
 # Add Flutter and Dart to PATH
 ENV PATH="/usr/local/flutter/bin:/usr/local/flutter/bin/cache/dart-sdk/bin:${PATH}"
 
+# Make tar ignore ownership change failures (fixes gradle-wrapper.tgz chown errors)
+ENV TAR_OPTIONS="--no-same-owner"
+
 # Enable web and precache web artifacts
-RUN flutter config --enable-web && \
-    flutter precache --web
+RUN flutter config --enable-web
+RUN flutter precache --web
 
 # Set app working directory
 WORKDIR /app
@@ -24,7 +27,7 @@ COPY . .
 # Build Flutter web
 RUN flutter build web --release
 
-# Serve build/web with dhttpd (simple Dart web server)
+# Serve build/web with dhttpd (simple Dart HTTP server)
 RUN dart pub global activate dhttpd
 
 EXPOSE 8080
