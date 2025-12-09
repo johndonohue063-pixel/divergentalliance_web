@@ -1,0 +1,950 @@
+﻿// lib/screens/weather_center_neon.dart
+// Neon-themed Weather Center (mobile-first).
+// Uses the same backend endpoint and JSON shape as your existing code:
+//
+//   GET https://da-wx-backend-1.onrender.com/api/wx?mode=State&state=STATE&hours=HOURS
+//
+// Dependencies (pubspec):
+//   cached_network_image
+//   google_fonts
+//
+// Assets (pubspec):
+//   assets/images/wx_reactor_wall.png  (background wallpaper)
+//
+// Use it like:
+//   Navigator.push(context, MaterialPageRoute(builder: (_) => const NeonWeatherCenterPro()));
+
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:marquee/marquee.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+class NeonWeatherCenterPro extends StatefulWidget {
+  const NeonWeatherCenterPro({super.key});
+
+  @override
+  State<NeonWeatherCenterPro> createState() => _NeonWeatherCenterProState();
+}
+
+class _NeonWeatherCenterProState extends State<NeonWeatherCenterPro>
+    with TickerProviderStateMixin {
+  static const Color kOrange = Color(0xFFFF6A00);
+  static const double _cardRadius = 18.0;
+
+  // same page size as backend assumption
+  static const int kPageSize = 15;
+
+  // state options
+  static const List<String> _states = <String>[
+    'Select state',
+    'AL',
+    'AK',
+    'AZ',
+    'AR',
+    'CA',
+    'CO',
+    'CT',
+    'DE',
+    'FL',
+    'GA',
+    'HI',
+    'ID',
+    'IL',
+    'IN',
+    'IA',
+    'KS',
+    'KY',
+    'LA',
+    'ME',
+    'MD',
+    'MA',
+    'MI',
+    'MN',
+    'MS',
+    'MO',
+    'MT',
+    'NE',
+    'NV',
+    'NH',
+    'NJ',
+    'NM',
+    'NY',
+    'NC',
+    'ND',
+    'OH',
+    'OK',
+    'OR',
+    'PA',
+    'RI',
+    'SC',
+    'SD',
+    'TN',
+    'TX',
+    'UT',
+    'VT',
+    'VA',
+    'WA',
+    'WV',
+    'WI',
+    'WY',
+    'DC',
+    'PR',
+  ];
+
+  String _selectedState = 'Select state';
+  double _hours = 36;
+  bool _loading = false;
+  List<CountyForecast> _forecasts = <CountyForecast>[];
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  // ----------------------
+  // Backend: same endpoint/contract as your original code
+  // ----------------------
+  Future<List<CountyForecast>> _fetchStateForecast(String stateCode) async {
+    // Clamp hours [24, 120] safely without type issues.
+    double clampedHours = _hours;
+    if (clampedHours < 24.0) clampedHours = 24.0;
+    if (clampedHours > 120.0) clampedHours = 120.0;
+    final int hours = clampedHours.round();
+
+    final Uri uri = Uri.parse(
+      'https://da-wx-backend-1.onrender.com/api/wx'
+      '?mode=State&state=$stateCode&hours=$hours',
+    );
+
+    final HttpClient client = HttpClient();
+    try {
+      final HttpClientRequest request = await client.getUrl(uri);
+      final HttpClientResponse response = await request.close();
+      if (response.statusCode != 200) {
+        throw Exception('Backend status ${response.statusCode}');
+      }
+      final String body = await response.transform(utf8.decoder).join();
+      final dynamic decoded = jsonDecode(body);
+      if (decoded is! List) {
+        throw Exception('Unexpected backend format (expected List).');
+      }
+      final List<CountyForecast> list = <CountyForecast>[];
+      for (final dynamic item in decoded) {
+        if (item is Map<String, dynamic>) {
+          list.add(CountyForecast.fromJson(item));
+        } else if (item is Map) {
+          final Map<String, dynamic> m = <String, dynamic>{};
+          item.forEach((dynamic k, dynamic v) {
+            m['$k'] = v;
+          });
+          list.add(CountyForecast.fromJson(m));
+        }
+      }
+      debugPrint('NEON WX: fetched ${list.length} rows for $stateCode ($hours h)');
+      return list;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<void> _runAndNavigate() async {
+    if (_selectedState == 'Select state') {
+      _showSnack('Pick a state first.');
+      return;
+    }
+    if (_loading) return;
+
+    setState(() {
+      _loading = true;
+    });
+
+    try {
+      final List<CountyForecast> fresh =
+          await _fetchStateForecast(_selectedState);
+      if (!mounted) return;
+
+      fresh.sort(
+        (CountyForecast a, CountyForecast b) =>
+            b.gridStressIndex.compareTo(a.gridStressIndex),
+      );
+
+      setState(() {
+        _forecasts = fresh;
+      });
+
+      // Navigate to results page (even if 0 rows – it will just show an empty list).
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NeonResultsPage(
+              stateCode: _selectedState,
+              forecasts: _forecasts,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _forecasts = <CountyForecast>[];
+      });
+      _showSnack('Forecast error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.black87,
+      ),
+    );
+  }
+
+  // derived metrics (simple)
+  double get _stateGsi {
+    if (_forecasts.isEmpty) return 0.0;
+    double sum = 0.0;
+    for (final CountyForecast c in _forecasts) {
+      sum += c.gridStressIndex;
+    }
+    final double avg = sum / _forecasts.length;
+    return ui.clampDouble(avg, 0.0, 1.0);
+  }
+
+  int get _stateLevel {
+    final double g = _stateGsi;
+    if (g >= 0.8) return 4;
+    if (g >= 0.6) return 3;
+    if (g >= 0.4) return 2;
+    if (g >= 0.2) return 1;
+    return 0;
+  }
+
+  int _totalCrews() {
+    int sum = 0;
+    for (final CountyForecast c in _forecasts) {
+      sum += c.crews;
+    }
+    return sum;
+  }
+
+  int _totalCustomers() {
+    int sum = 0;
+    for (final CountyForecast c in _forecasts) {
+      sum += c.predictedCustomersOut;
+    }
+    return sum;
+  }
+
+  String _percentText() {
+    if (_forecasts.isEmpty) return '—';
+    int popTotal = 0;
+    int elev = 0;
+    for (final CountyForecast c in _forecasts) {
+      popTotal += c.population;
+      if (c.gridStressIndex >= 0.4) {
+        elev += c.population;
+      }
+    }
+    if (popTotal == 0) return '—';
+    final int pct = ((elev / popTotal) * 100).round();
+    return '$pct%';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final TextTheme textTheme =
+        GoogleFonts.interTextTheme(Theme.of(context).textTheme);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF060708),
+      body: SafeArea(
+        child: Stack(
+          children: <Widget>[
+            // background wallpaper and dim
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/wx_reactor_wall.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+            Positioned.fill(
+              child: Container(color: Colors.black.withOpacity(0.36)),
+            ),
+            // optional film grain / vignette
+            const Positioned.fill(child: _FilmGrain()),
+            // Content
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  // AppBar-ish row
+                  Row(
+                    children: <Widget>[
+                      const _BrandDotSmall(),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Divergent Weather',
+                          style: textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.download_rounded,
+                          color: Colors.white70,
+                        ),
+                        onPressed:
+                            _forecasts.isEmpty ? null : _exportCsvQuick,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  NeonTicker(text: _tickerText()),
+                  const SizedBox(height: 12),
+                  _buildControlsCard(textTheme),
+                  const SizedBox(height: 12),
+                  _neonCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        // header row
+                        Row(
+                          children: <Widget>[
+                            const Icon(Icons.speed_rounded, color: kOrange),
+                            const SizedBox(width: 8),
+                            Text(
+                              'State Grid Stress',
+                              style: textTheme.bodyLarge?.copyWith(
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            _levelBadge(_stateLevel),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // gauge + mini-map+radar
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Expanded(
+                              flex: 4,
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.only(right: 8.0),
+                                child: NeonGauge(
+                                  value: _stateGsi,
+                                  size: 120,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 6,
+                              child: _miniMapAndRadar(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // KPI pills
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: _kpiPill(
+                                icon: Icons.person_off,
+                                title: 'Pred Cust Out',
+                                value: _formatInt(_totalCustomers()),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _kpiPill(
+                                icon: Icons.engineering_rounded,
+                                title: 'Crews',
+                                value: '${_totalCrews()}',
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _kpiPill(
+                                icon: Icons.groups_2_rounded,
+                                title: 'Pop L2+/L3+',
+                                value: _percentText(),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // Execute button
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: kOrange,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(999),
+                                  ),
+                                  elevation: 12,
+                                ),
+                                icon: _loading
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.black,
+                                        ),
+                                      )
+                                    : const Icon(Icons.analytics_rounded),
+                                label: Text(
+                                  _loading
+                                      ? 'Executing...'
+                                      : 'Execute report',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                onPressed:
+                                    _loading ? null : _runAndNavigate,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // quick preview of top counties (first 3)
+                  if (_forecasts.isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Text(
+                          'Top counties',
+                          style: textTheme.titleMedium?.copyWith(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        for (int i = 0;
+                            i < math.min(3, _forecasts.length);
+                            i++)
+                          Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: 8.0),
+                            child: NeonCountyTile(
+                              forecast: _forecasts[i],
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------- helper UI pieces ----------------
+
+  Widget _buildControlsCard(TextTheme textTheme) {
+    return _neonCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.tune_rounded,
+                  color: kOrange, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Forecast controls',
+                style: textTheme.bodyLarge?.copyWith(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // State dropdown
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'State',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                height: 44,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  color: Colors.black.withOpacity(0.5),
+                  border: Border.all(
+                    color: _selectedState == 'Select state'
+                        ? Colors.white24
+                        : kOrange.withOpacity(0.9),
+                    width: 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    const Icon(
+                      Icons.public,
+                      color: kOrange,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButton<String>(
+                        value: _selectedState,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF151515),
+                        underline: const SizedBox.shrink(),
+                        iconEnabledColor: kOrange,
+                        style:
+                            const TextStyle(color: Colors.white),
+                        items: _states
+                            .map(
+                              (String s) => DropdownMenuItem<
+                                  String>(
+                                value: s,
+                                child: Text(s),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (String? v) {
+                          if (v == null) return;
+                          setState(() {
+                            _selectedState = v;
+                            _forecasts = <CountyForecast>[];
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Hours slider
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'Forecast window (hours)',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                ),
+              ),
+              Slider(
+                min: 24,
+                max: 120,
+                divisions: 8,
+                value: _hours,
+                label: _hours.toStringAsFixed(0),
+                activeColor: kOrange,
+                onChanged: (double v) {
+                  setState(() {
+                    _hours = v;
+                  });
+                },
+              ),
+              Text(
+                '${_hours.toStringAsFixed(0)}h window (up to 5 days)',
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _tickerText() {
+    final int pct = (_stateGsi * 100).round();
+    final String statePart = _selectedState != 'Select state'
+        ? ' • ${_selectedState.toUpperCase()} $pct%'
+        : '';
+    return 'Divergent Alliance • Materials & Storm Ops ready 24/7$statePart';
+  }
+
+  // small neon badge
+  Widget _levelBadge(int level) {
+    const Map<int, String> labels = <int, String>{
+      0: 'Normal',
+      1: 'Watch',
+      2: 'Elevated',
+      3: 'High',
+      4: 'Severe',
+    };
+    final Color color = _gsiColor(level);
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: color.withOpacity(0.9),
+        ),
+      ),
+      child: Text(
+        'Lvl $level • ${labels[level]}',
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _neonCard({required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.65),
+            blurRadius: 30,
+            offset: const Offset(0, 16),
+          ),
+          BoxShadow(
+            color: kOrange.withOpacity(0.12),
+            blurRadius: 40,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_cardRadius),
+        child: Stack(
+          children: <Widget>[
+            BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                color: Colors.black.withOpacity(0.08),
+                child: child,
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius:
+                        BorderRadius.circular(_cardRadius),
+                    border: Border.all(
+                      color: kOrange.withOpacity(0.18),
+                      width: 1.2,
+                    ),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        Colors.transparent,
+                        kOrange.withOpacity(0.04),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniMapAndRadar() {
+    return Column(
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: 120,
+            color: Colors.black,
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                Center(
+                  child: Image.asset(
+                    'assets/images/wx_reactor_wall.png',
+                    fit: BoxFit.cover,
+                    color: Colors.black.withOpacity(0.55),
+                    colorBlendMode: BlendMode.darken,
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      colors: <Color>[
+                        kOrange.withOpacity(0.08),
+                        Colors.transparent,
+                      ],
+                      center: Alignment.center,
+                      radius: 0.8,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.45),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: kOrange.withOpacity(0.35),
+                      ),
+                    ),
+                    child: CachedNetworkImage(
+                      imageUrl:
+                          'https://radar.weather.gov/ridge/standard/CONUS_0.gif',
+                      placeholder: (_, __) => const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => const Icon(
+                        Icons.cloud_off,
+                        color: Colors.white24,
+                        size: 18,
+                      ),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _kpiPill({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: kOrange.withOpacity(0.16)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: kOrange, size: 18),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _exportCsvQuick() {
+    if (_forecasts.isEmpty) {
+      _showSnack('Nothing to export');
+      return;
+    }
+    final StringBuffer sb = StringBuffer();
+    sb.writeln(
+      <String>[
+        'county',
+        'state',
+        'maxGust',
+        'prob',
+        'crews',
+        'predCustOut',
+        'gsi',
+      ].join(','),
+    );
+    for (final CountyForecast c in _forecasts) {
+      sb.writeln(<String>[
+        c.county,
+        c.state,
+        c.maxGust.toStringAsFixed(1),
+        (c.probability * 100).toStringAsFixed(0),
+        c.crews.toString(),
+        c.predictedCustomersOut.toString(),
+        c.gridStressIndex.toStringAsFixed(3),
+      ].join(','));
+    }
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF121212),
+          title: const Text(
+            'CSV',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              sb.toString(),
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Color _gsiColor(int level) {
+    switch (level) {
+      case 4:
+        return const Color(0xFFFF3B30);
+      case 3:
+        return const Color(0xFFFF9500);
+      case 2:
+        return const Color(0xFFFFD54F);
+      case 1:
+        return const Color(0xFF7ED321);
+      default:
+        return Colors.white24;
+    }
+  }
+}
+
+// ------------------- subcomponents -------------------
+
+class NeonTicker extends StatelessWidget {
+  final String text;
+  const NeonTicker({required this.text, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(
+      color: Colors.white70,
+      fontSize: 12,
+    );
+
+    return SizedBox(
+      height: 36,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.45), // slim strip, not a big brown block
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.campaign_rounded,
+              size: 14,
+              color: Color(0xFFFF6A00),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ClipRect(
+                child: Marquee(
+                  text: text,
+                  style: style,
+                  blankSpace: 40,
+                  velocity: 22.0,
+                  pauseAfterRound: const Duration(seconds: 1),
+                  startPadding: 0,
+                  accelerationDuration: const Duration(seconds: 1),
+                  accelerationCurve: Curves.linear,
+                  decelerationDuration: const Duration(milliseconds: 500),
+                  decelerationCurve: Curves.easeOut,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+class WeatherCenterPro extends StatelessWidget {
+  const WeatherCenterPro({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // NeonWeatherCenterPro is your new UI.
+    return const NeonWeatherCenterPro();
+  }
+}
+
+
+
+
+
+
+

@@ -1,0 +1,446 @@
+﻿import 'package:flutter/material.dart';
+import '../ui/da_brand.dart';
+import 'package:divergent_alliance/services/wx_backend_service.dart';
+import 'run_report_processing_screen.dart';
+import 'package:divergent_alliance/pages/weather_results.dart';
+
+enum GeoScope { national, region, state }
+
+class WeatherCenterPro extends StatefulWidget {
+  const WeatherCenterPro({super.key});
+
+  @override
+  State<WeatherCenterPro> createState() => _WeatherCenterProState();
+}
+
+class _WeatherCenterProState extends State<WeatherCenterPro> {
+  GeoScope _scope = GeoScope.national;
+
+  String? _selectedRegion;
+  String? _selectedState;
+
+  double _hoursOut = 24;
+
+  static const String _noaaConusRadarUrl =
+      'https://radar.weather.gov/ridge/standard/CONUS_loop.gif';
+
+  // FINAL REGION LIST
+  static const List<String> _regions = [
+    "Northeast",
+    "Mid-Atlantic",
+    "Southeast",
+    "Central",
+    "South Central",
+    "Midwest",
+    "Northwest",
+    "Southwest",
+    "Great Plains",
+  ];
+
+  // US STATES
+  static const List<String> _usStates = [
+    'Alabama','Alaska','Arizona','Arkansas','California','Colorado',
+    'Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho',
+    'Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana',
+    'Maine','Maryland','Massachusetts','Michigan','Minnesota',
+    'Mississippi','Missouri','Montana','Nebraska','Nevada',
+    'New Hampshire','New Jersey','New Mexico','New York',
+    'North Carolina','North Dakota','Ohio','Oklahoma','Oregon',
+    'Pennsylvania','Rhode Island','South Carolina','South Dakota',
+    'Tennessee','Texas','Utah','Vermont','Virginia','Washington',
+    'West Virginia','Wisconsin','Wyoming',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final orange = DABrand.orange;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF050608),
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: const Text('Divergent Alliance Weather Center'),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/wx_reactor_wall.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              _buildScopeSelector(orange),
+              const SizedBox(height: 8),
+              _buildLocationSelectors(theme),
+              const SizedBox(height: 8),
+              _buildHoursSlider(orange),
+              const SizedBox(height: 8),
+              _buildRadarViewer(orange),
+              const SizedBox(height: 12),
+              _buildRunButton(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ----------------- Scope Selector -----------------
+  Widget _buildScopeSelector(Color orange) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: orange, width: 1.4),
+        color: const Color(0xFF08090C),
+      ),
+      child: Row(
+        children: [
+          const Text(
+            'Scope:',
+            style: TextStyle(
+              color: Colors.orange,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              children: [
+                _buildScopeControl('National', GeoScope.national),
+                _buildScopeControl('Region', GeoScope.region),
+                _buildScopeControl('State', GeoScope.state),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScopeControl(String label, GeoScope scope) {
+    final orange = DABrand.orange;
+    final selected = _scope == scope;
+
+    return SizedBox(
+      width: 96,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ScopeIndicatorBulb(selected: selected, orange: orange),
+          const SizedBox(height: 6),
+          ScopePushButton(
+            label: label,
+            selected: selected,
+            onTap: () => setState(() => _scope = scope),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------- Region / State -----------------
+  Widget _buildLocationSelectors(ThemeData theme) {
+    switch (_scope) {
+      case GeoScope.national:
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Scope: All Regions',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: Colors.white70,
+            ),
+          ),
+        );
+
+      case GeoScope.region:
+        return Row(
+          children: [
+            Expanded(
+              child: _buildDropdown<String>(
+                label: 'Region',
+                value: _selectedRegion,
+                items: _regions,
+                onChanged: (v) => setState(() => _selectedRegion = v),
+              ),
+            ),
+          ],
+        );
+
+      case GeoScope.state:
+        return Row(
+          children: [
+            Expanded(
+              child: _buildDropdown<String>(
+                label: 'State',
+                value: _selectedState,
+                items: _usStates,
+                onChanged: (v) => setState(() => _selectedState = v),
+              ),
+            ),
+          ],
+        );
+    }
+  }
+
+  Widget _buildDropdown<T>({
+    required String label,
+    required T? value,
+    required List<T> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    final orange = DABrand.orange;
+
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade700),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: orange),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: items.contains(value) ? value : null,
+          isExpanded: true,
+          dropdownColor: const Color(0xFF111111),
+          onChanged: onChanged,
+          items: items
+              .map(
+                (e) => DropdownMenuItem<T>(
+                  value: e,
+                  child: Text(
+                    e.toString(),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  // ----------------- Hours Slider -----------------
+  Widget _buildHoursSlider(Color orange) {
+    return Row(
+      children: [
+        const Text(
+          'Hours Out',
+          style: TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              thumbColor: orange,
+              activeTrackColor: orange,
+              inactiveTrackColor: Colors.grey.shade800,
+            ),
+            child: Slider(
+              min: 6,
+              max: 72,
+              divisions: 11,
+              value: _hoursOut,
+              label: '${_hoursOut.round()} h',
+              onChanged: (value) => setState(() => _hoursOut = value),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '${_hoursOut.round()} h',
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  // ----------------- Radar -----------------
+  Widget _buildRadarViewer(Color orange) {
+    return Expanded(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: orange.withOpacity(0.7), width: 1.2),
+            color: Colors.black,
+          ),
+          child: _buildRadarImage(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRadarImage() {
+    final url = _noaaConusRadarUrl;
+    debugPrint('RADAR URL → $url');
+
+    return InteractiveViewer(
+      minScale: 1.0,
+      maxScale: 4.0,
+      child: Image.network(
+        url,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) =>
+            const Center(child: Text('Radar unavailable', style: TextStyle(color: Colors.orange))),
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : const Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+
+  // ----------------- RUN REPORT -----------------
+  Widget _buildRunButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: DABrand.orange,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+        ),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RunReportProcessingScreen(
+                isNational: _scope == GeoScope.national,
+                region: _selectedRegion ?? "",
+                state: _selectedState ?? "",
+                hoursOut: _hoursOut.toInt(),
+              ),
+            ),
+          );
+        },
+        child: const Text(
+          'Run Report',
+          style: TextStyle(
+            color: Colors.black,       // change to Colors.white if you prefer
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+// ------------------------------------------------------------
+// Visual-only widgets preserved EXACTLY as in your original file
+// ------------------------------------------------------------
+
+class ScopeIndicatorBulb extends StatelessWidget {
+  final bool selected;
+  final Color orange;
+
+  const ScopeIndicatorBulb({
+    super.key,
+    required this.selected,
+    required this.orange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = selected ? orange : Colors.grey.shade500;
+    final gradientColors = selected
+        ? <Color>[orange, orange.withOpacity(0.4)]
+        : <Color>[Colors.white70, Colors.grey.shade500];
+
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: gradientColors,
+          center: Alignment.topLeft,
+          radius: 0.9,
+        ),
+        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: orange.withOpacity(0.8),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                )
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black,
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                )
+              ],
+      ),
+    );
+  }
+}
+
+class ScopePushButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const ScopePushButton({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = selected ? const Color(0xFF191B21) : const Color(0xFF0C0D10);
+    final rimColor = selected ? const Color(0xFFFF7A1A) : Colors.grey.shade600;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: selected
+                ? <Color>[const Color(0xFF20232B), const Color(0xFF101218)]
+                : <Color>[const Color(0xFF14151A), const Color(0xFF090A0E)],
+          ),
+          border: Border.all(color: rimColor, width: selected ? 1.6 : 1.0),
+          boxShadow: selected
+              ? const [BoxShadow(color: Colors.black87, blurRadius: 14, offset: Offset(0, 6))]
+              : const [BoxShadow(color: Colors.black, blurRadius: 8, offset: Offset(0, 4))],
+        ),
+        child: Center(
+          child: Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: selected ? const Color(0xFFFF7A1A) : Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

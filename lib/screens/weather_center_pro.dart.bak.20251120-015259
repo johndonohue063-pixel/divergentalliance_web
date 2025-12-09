@@ -1,0 +1,500 @@
+﻿import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+
+import '../ui/da_brand.dart';
+
+enum WeatherViewMode { field, enhanced }
+enum GeoScope { national, region, state, county }
+
+class WeatherCenterPro extends StatefulWidget {
+  const WeatherCenterPro({super.key});
+
+  @override
+  State<WeatherCenterPro> createState() => _WeatherCenterProState();
+}
+
+class _WeatherCenterProState extends State<WeatherCenterPro> {
+  WeatherViewMode _viewMode = WeatherViewMode.field;
+  GeoScope _scope = GeoScope.national;
+
+  String? _selectedRegion;
+  String? _selectedState;
+  String? _selectedCounty;
+
+  bool _isRunningReport = false;
+  String? _lastReport;
+
+  final List<String> _regions = [
+    'Midwest',
+    'Northeast',
+    'South',
+    'West',
+  ];
+
+  final List<String> _states = [
+    'Illinois',
+    'Indiana',
+    'Wisconsin',
+    'Iowa',
+  ];
+
+  final Map<String, List<String>> _countiesByState = {
+    'Illinois': ['Cook', 'Lake', 'DuPage'],
+    'Indiana': ['Lake', 'Porter'],
+    'Wisconsin': ['Kenosha', 'Racine'],
+    'Iowa': ['Scott', 'Linn'],
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final orange = DABrand.orange;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Weather Center Pro'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            // FIELD VIEW / ENHANCED VIEW toggle
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: orange, width: 1.4),
+                    color: Colors.black,
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: ToggleButtons(
+                    borderRadius: BorderRadius.circular(24),
+                    constraints: const BoxConstraints(
+                      minWidth: 80,
+                      minHeight: 32,
+                    ),
+                    isSelected: [
+                      _viewMode == WeatherViewMode.field,
+                      _viewMode == WeatherViewMode.enhanced,
+                    ],
+                    onPressed: (index) {
+                      setState(() {
+                        _viewMode = index == 0
+                            ? WeatherViewMode.field
+                            : WeatherViewMode.enhanced;
+                      });
+                    },
+                    fillColor: orange,
+                    selectedColor: Colors.black,
+                    color: Colors.white70,
+                    borderColor: Colors.transparent,
+                    children: const [
+                      Text(
+                        'FIELD VIEW',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      Text(
+                        'ENHANCED VIEW',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // SCOPE chips
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  _buildScopeChip('National', GeoScope.national),
+                  _buildScopeChip('Region', GeoScope.region),
+                  _buildScopeChip('State', GeoScope.state),
+                  _buildScopeChip('County', GeoScope.county),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Location selectors
+            _buildLocationSelectors(theme),
+            const SizedBox(height: 8),
+
+            // Radar / map area
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: orange.withOpacity(0.7),
+                      width: 1.2,
+                    ),
+                    color: Colors.black,
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _buildRadarImage(),
+                      ),
+                      if (_viewMode == WeatherViewMode.enhanced)
+                        Positioned(
+                          left: 8,
+                          right: 8,
+                          bottom: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.65),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _buildEnhancedCaption(),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: orange,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Run report button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isRunningReport ? null : _runReport,
+                icon: const Icon(Icons.analytics_outlined),
+                label: Text(
+                  _isRunningReport
+                      ? 'Running reportâ€¦'
+                      : 'Run Weather Report',
+                ),
+              ),
+            ),
+            if (_lastReport != null) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _lastReport!,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: Colors.white70),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---- UI helpers ----
+
+  Widget _buildScopeChip(String label, GeoScope scope) {
+    final orange = DABrand.orange;
+    final selected = _scope == scope;
+
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) {
+        setState(() {
+          _scope = scope;
+        });
+      },
+      labelStyle: TextStyle(
+        color: selected ? Colors.black : Colors.white70,
+        fontSize: 12,
+      ),
+      selectedColor: orange,
+      backgroundColor: const Color(0xFF111111),
+      side: BorderSide(
+        color: selected ? orange : Colors.grey.shade700,
+      ),
+    );
+  }
+
+  Widget _buildLocationSelectors(ThemeData theme) {
+    switch (_scope) {
+      case GeoScope.national:
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Scope: United States (CONUS)',
+            style:
+                theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+          ),
+        );
+      case GeoScope.region:
+        return Row(
+          children: [
+            Expanded(
+              child: _buildDropdown<String>(
+                label: 'Region',
+                value: _selectedRegion,
+                items: _regions,
+                onChanged: (value) {
+                  setState(() => _selectedRegion = value);
+                },
+              ),
+            ),
+          ],
+        );
+      case GeoScope.state:
+        return Row(
+          children: [
+            Expanded(
+              child: _buildDropdown<String>(
+                label: 'State',
+                value: _selectedState,
+                items: _states,
+                onChanged: (value) {
+                  setState(() {
+                    _selectedState = value;
+                    _selectedCounty = null;
+                  });
+                },
+              ),
+            ),
+          ],
+        );
+      case GeoScope.county:
+        final counties = _selectedState != null
+            ? (_countiesByState[_selectedState!] ?? [])
+            : const <String>[];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdown<String>(
+                    label: 'State',
+                    value: _selectedState,
+                    items: _states,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedState = value;
+                        _selectedCounty = null;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdown<String>(
+                    label: 'County',
+                    value: _selectedCounty,
+                    items: counties,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCounty = value;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+    }
+  }
+
+  Widget _buildDropdown<T>({
+    required String label,
+    required T? value,
+    required List<T> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    final orange = DABrand.orange;
+
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade700),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: orange),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: items.contains(value) ? value : null,
+          isExpanded: true,
+          onChanged: onChanged,
+          dropdownColor: const Color(0xFF111111),
+          items: items
+              .map(
+                (e) => DropdownMenuItem<T>(
+                  value: e,
+                  child: Text(
+                    e.toString(),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRadarImage() {
+    const url =
+        'https://radar.weather.gov/ridge/Conus/RadarImg/latest_radaronly.gif';
+
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) {
+        return const Center(
+          child: Text(
+            'Radar image unavailable',
+            style: TextStyle(color: Colors.orange),
+          ),
+        );
+      },
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+  }
+
+  String _buildEnhancedCaption() {
+    final scopeLabel = () {
+      switch (_scope) {
+        case GeoScope.national:
+          return 'National composite';
+        case GeoScope.region:
+          return _selectedRegion ?? 'Regional view';
+        case GeoScope.state:
+          return _selectedState ?? 'State view';
+        case GeoScope.county:
+          final base = _selectedCounty ?? 'County view';
+          if (_selectedState != null) {
+            return '$base, ${_selectedState!}';
+          }
+          return base;
+      }
+    }();
+
+    return 'Enhanced view â€¢ $scopeLabel â€¢ Live NEXRAD composite (NOAA)';
+  }
+
+  // ---- Report logic ----
+
+  Future<void> _runReport() async {
+    setState(() {
+      _isRunningReport = true;
+      _lastReport = null;
+    });
+
+    try {
+      final position = await _getOrRequestLocation();
+
+      if (position == null) {
+        setState(() {
+          _isRunningReport = false;
+          _lastReport =
+              'Location permission denied or disabled â€“ cannot run report.';
+        });
+        return;
+      }
+
+      final lat = position.latitude;
+      final lon = position.longitude;
+
+      final uri = Uri.parse(
+        'https://api.open-meteo.com/v1/forecast'
+        '?latitude=$lat&longitude=$lon'
+        '&current_weather=true',
+      );
+
+      final response = await http.get(uri);
+      if (response.statusCode != 200) {
+        setState(() {
+          _isRunningReport = false;
+          _lastReport =
+              'Report failed (HTTP ${response.statusCode}). Try again.';
+        });
+        return;
+      }
+
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final current = json['current_weather'] as Map<String, dynamic>?;
+
+      if (current == null) {
+        setState(() {
+          _isRunningReport = false;
+          _lastReport = 'No current weather data in response.';
+        });
+        return;
+      }
+
+      final temp = current['temperature'];
+      final wind = current['windspeed'];
+      final code = current['weathercode'];
+
+      setState(() {
+        _isRunningReport = false;
+        _lastReport =
+            'Report for current location â€¢ Temp: ${temp}Â°C â€¢ Wind: ${wind} km/h â€¢ Code: $code';
+      });
+    } catch (e) {
+      setState(() {
+        _isRunningReport = false;
+        _lastReport = 'Error running report: $e';
+      });
+    }
+  }
+
+  Future<Position?> _getOrRequestLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return null;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return null;
+    }
+
+    return Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.medium,
+    );
+  }
+}

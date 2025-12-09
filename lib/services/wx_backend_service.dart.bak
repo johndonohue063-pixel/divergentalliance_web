@@ -1,0 +1,94 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+/// Divergent Alliance Weather Backend Service
+/// 100 percent backend-driven.
+/// Supports: Nationwide, State, Region (full US regions).
+/// Backend returns fields:
+/// county, state, expectedGust, expectedSustained, maxGust, maxSustained,
+/// probability, crews, severity (Threat Level), confidence, population.
+
+class WxBackendService {
+  // Your Render backend (live)
+  static const String _base =
+      "https://da-wx-backend-1.onrender.com/api/wx";
+
+  /// Nationwide forecast
+  static Future<List<Map<String, dynamic>>> fetchNationwide({
+    int hours = 24,
+  }) async {
+    final uri = Uri.parse("$_base?mode=Nationwide&hours=$hours");
+    return _fetch(uri);
+  }
+
+  /// Region forecast
+  static Future<List<Map<String, dynamic>>> fetchRegion({
+    required String region,
+    int hours = 24,
+  }) async {
+    final uri =
+        Uri.parse("$_base?mode=Region&region=$region&hours=$hours");
+    return _fetch(uri);
+  }
+
+  /// State forecast
+  static Future<List<Map<String, dynamic>>> fetchState({
+    required String state,
+    int hours = 24,
+  }) async {
+    final uri =
+        Uri.parse("$_base?mode=State&state=$state&hours=$hours");
+    return _fetch(uri);
+  }
+
+  // ---------------------------------------------------------------------------
+  // INTERNAL FETCH + NORMALIZE
+  // ---------------------------------------------------------------------------
+
+  static Future<List<Map<String, dynamic>>> _fetch(Uri url) async {
+    try {
+      final resp = await http.get(url);
+
+      if (resp.statusCode != 200) {
+        print("WX BACKEND ERROR: HTTP ${resp.statusCode}");
+        return [];
+      }
+
+      final body = jsonDecode(resp.body);
+      if (body is List) {
+        return body
+            .whereType<Map<String, dynamic>>()
+            .map((row) => _normalize(row))
+            .toList();
+      }
+
+      return [];
+    } catch (e) {
+      print("WX BACKEND EXCEPTION: $e");
+      return [];
+    }
+  }
+
+  // Normalize fields from backend to guarantee they exist
+  static Map<String, dynamic> _normalize(Map<String, dynamic> r) {
+    return {
+      "county": r["county"] ?? "",
+      "state": r["state"] ?? "",
+      "expectedGust": _num(r["expectedGust"]),
+      "expectedSustained": _num(r["expectedSustained"]),
+      "maxGust": _num(r["maxGust"]),
+      "maxSustained": _num(r["maxSustained"]),
+      "probability": _num(r["probability"]),
+      "crews": r["crews"] ?? 0,
+      "severity": r["severity"]?.toString() ?? "0",
+      "confidence": r["confidence"] ?? 0,
+      "population": r["population"] ?? 0,
+    };
+  }
+
+  static double _num(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+}

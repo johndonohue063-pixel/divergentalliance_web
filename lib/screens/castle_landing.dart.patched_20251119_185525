@@ -1,0 +1,111 @@
+﻿import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../widgets/weathered_circuit_button.dart';
+import 'weather_center_gate.dart';   // if the gate file is in the same folder
+
+const kBrandOrange = Color(0xFFFF6E00);
+
+class CastleLanding extends StatelessWidget {
+  const CastleLanding({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // HERO BACKGROUND â€” exact asset
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/truck.jpg'),
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+              ),
+            ),
+          ),
+
+          // Subtle dark overlay for readability
+          Container(color: Colors.black.withValues(alpha: 0.30)),
+
+          // Title + subtitle (top-left)
+          Positioned(
+            left: 20,
+            top: 56,
+            right: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'DIVERGENT '
+                      'ALLIANCE',
+                  style: GoogleFonts.rubikDirt(
+                    textStyle: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFFFFA500),
+                      letterSpacing: 2.0,
+                      shadows: [
+                        Shadow(blurRadius: 12, color: Color(0xFFFFD580), offset: Offset(0, 0)),
+                        Shadow(blurRadius: 24, color: Color(0xFFFF8C00), offset: Offset(0, 0)),
+                        Shadow(blurRadius: 36, color: Color(0xFFDD6600), offset: Offset(0, 0)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Storm Response | Material Supply | Utility R&D',
+                  style: GoogleFonts.goldman(
+                    fontSize: 15,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Bottom buttons (inside your Stack children)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 24,
+            child: SafeArea(
+              minimum: const EdgeInsets.only(bottom: 8),
+              child: Center(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 16,
+                  runSpacing: 12,
+                  children: [
+                    WeatheredCircuitButton(
+                      label: 'Shop',
+                      width: 240,
+                      height: 64,
+                      onPressed: () {
+                        // TODO: route to Shop
+                      },
+                    ),
+                    WeatheredCircuitButton(
+                      label: 'Weather Center',
+                      width: 320,
+                      height: 64,
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const WeatherCenterGate(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],  // closes Stack children
+      ),  // closes Stack
+    );    // closes Scaffold
+  }       // closes build()
+}         // closes class

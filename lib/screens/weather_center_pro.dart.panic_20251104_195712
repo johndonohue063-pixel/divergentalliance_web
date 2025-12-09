@@ -1,0 +1,1129 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import '../services/wcp_api.dart';
+
+// ===================== THEME =====================
+const kBrandOrange = Color(0xFFFF6A00);
+const kBrandBlack  = Color(0xFF0E0E0E);
+const String kWxBaseUrl =
+    String.fromEnvironment('WX_BACKEND_URL', defaultValue: 'https://da-wx-backend.onrender.com
+
+// ===================== ENUMS =====================
+enum WindMetric { gust, sustained }
+enum SortBy { gust, sustained, probability, severity }
+const List<String> kLocationModes = ['Nationwide', 'Regional', 'State'];
+const List<String> kRegions = ['Northeast', 'Midwest', 'South', 'West'];
+
+// ===================== MODELS =====================
+class County {
+  final String name;
+  final String state;
+  final int population;
+  final double lat;
+  final double lon;
+  const County({
+    required this.name,
+    required this.state,
+    required this.population,
+    required this.lat,
+    required this.lon,
+  });
+}
+
+class CountyRow {
+  final String county;
+  final String state;
+  final double expectedGust;
+  final double expectedSustained;
+  final double maxGust;
+  final double maxSustained;
+  final double probability; // 0..1
+  final int crews;
+  final String severity; // "Level X"
+  final int confidence;  // 0..100
+  const CountyRow({
+    required this.county,
+    required this.state,
+    required this.expectedGust,
+    required this.expectedSustained,
+    required this.maxGust,
+    required this.maxSustained,
+    required this.probability,
+    required this.crews,
+    required this.severity,
+    required this.confidence,
+  });
+}
+
+// Severity band
+class _SeverityBand {
+  final String level;
+  final double minGust;
+  final double minSustained;
+  const _SeverityBand(this.level, this.minGust, this.minSustained);
+}
+
+// ===================== PROVIDER =====================
+abstract class WxProvider {
+  Future<List<CountyRow>> fetchReport({
+    required String locationMode, // 'Nationwide'|'Regional'|'State'
+    String? region,               // 'Northeast'|'Midwest'|'South'|'West'
+    String? state,                // e.g., 'TX'
+    required double hours,        // e.g., 36
+    required String metric,       // 'gust'|'sustained'
+    required double thresholdMph, // min wind mph
+  });
+}
+
+class RealWxProvider implements WxProvider {
+  static String? lastUrl;
+  static int lastStatus = -1;
+  static int lastRowsBefore = 0;
+  static String? lastErrorSnippet;
+
+  String _mapRegion(String? r) {
+    switch (r) {
+      case 'Northeast': return 'NE';
+      case 'Midwest':   return 'MW';
+      case 'South':     return 'SO';
+      case 'West':      return 'WE';
+      default:          return 'NE';
+    }
+  }
+
+  List<String> _bases() {
+    final b = <String>[];
+    if (!'https://da-wx-backend.onrender.com b.insert(0, 'https://da-wx-backend.onrender.com
+    if (!'https://da-wx-backend.onrender.com b.insert(0, 'https://da-wx-backend.onrender.com
+    if (!'https://da-wx-backend.onrender.com b.insert(0, 'https://da-wx-backend.onrender.com
+    if (!'https://da-wx-backend.onrender.com b.insert(0, 'https://da-wx-backend.onrender.com
+    if (!'https://da-wx-backend.onrender.com b.insert(0, 'https://da-wx-backend.onrender.com
+    if (!kWxBaseUrl.isEmpty) b.add(kWxBaseUrl);
+    for (final d in const [
+      'https://da-wx-backend.onrender.com
+      'https://da-wx-backend.onrender.com
+      'https://da-wx-backend.onrender.com
+      'https://da-wx-backend.onrender.com
+    ]) { if (!b.contains(d)) b.add(d); }
+    return b;
+  }
+
+  Future<List<dynamic>> _getJsonArray(Uri uri) async {
+    lastUrl = uri.toString();
+    debugPrint('[WCP] GET ' + lastUrl!);
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 60);
+    try {
+      final req = await client.getUrl(uri);
+      final resp = await req.close().timeout(const Duration(seconds: 60));
+      lastStatus = resp.statusCode;
+      final body = await resp.transform(utf8.decoder).join();
+      if (resp.statusCode != 200) {
+        lastErrorSnippet = 'HTTP ' + resp.statusCode.toString();
+        throw HttpException('HTTP ' + resp.statusCode.toString());
+      }
+      final decoded = json.decode(body);
+      if (decoded is List) {
+        lastRowsBefore = decoded.length; debugPrint('[WCP] rows(before)=' + decoded.length.toString()); return decoded;
+      }
+      if (decoded is Map && decoded['rows'] is List) {
+        final rows = decoded['rows'] as List;
+        lastRowsBefore = rows.length; debugPrint('[WCP] rows(before)=' + rows.length.toString() + ' (map)'); return rows;
+      }
+      lastErrorSnippet = 'Unexpected JSON';
+      throw const FormatException('Unexpected JSON shape');
+    } finally { client.close(); }
+  }
+
+  double _numToDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) { final d = double.tryParse(v.trim()); if (d != null) return d; }
+    return 0.0;
+  }
+  int _numToInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.round();
+    if (v is String) { final i = int.tryParse(v.trim()); if (i != null) return i; }
+    return 0;
+  }
+  Map<String, String> _qs(Map<String, String?> src) {
+    final m = <String, String>{};
+    src.forEach((k, v) { if (v != null && v.toString().isNotEmpty) m[k] = v!; });
+    return m;
+  }
+
+  @override
+  Future<List<CountyRow>> fetchReport({
+    required String locationMode,
+    String? region,
+    String? state,
+    required double hours,
+    required String metric,
+    required double thresholdMph,
+  }) async {
+    String path;
+    final baseParams = <String, String?>{'hours': hours.toStringAsFixed(0)};
+    if (locationMode == 'Nationwide') { path = '/report/regions'; }
+    else if (locationMode == 'Regional') { path = '/report/region'; baseParams['region'] = _mapRegion(region); }
+    else { path = '/report/state'; baseParams['state'] = state; }
+
+    final attempts = <Map<String, dynamic>>[
+      {'p': path, 'q': {...baseParams, 'metric': metric, 'threshold': thresholdMph.toStringAsFixed(0)}},
+      {'p': path, 'q': {...baseParams, 'metric': metric}},
+      {'p': path, 'q': {...baseParams}},
+      if (path != '/report/regions') {'p': '/report/regions', 'q': {...baseParams}},
+    ];
+
+    List<dynamic> rows = [];
+    for (final a in attempts) {
+      var success = false;
+      for (final base in _bases()) {
+        final uri = Uri.parse(base + (a['p'] as String)).replace(queryParameters: _qs(a['q'] as Map<String, String?>));
+        try { rows = await _getJsonArray(uri); success = rows.isNotEmpty; if (success) break; }
+        catch (e) { debugPrint('[WCP] attempt ' + base + ' failed: ' + e.toString()); }
+      }
+      if (success) break;
+    }
+
+    final out = <CountyRow>[];
+    for (final r in rows) {
+      if (r is! Map) continue;
+      final name  = (r['county'] ?? r['name'] ?? r['county_name'] ?? '').toString();
+      final st    = (r['state']  ?? r['st']   ?? '').toString();
+      final eg    = _numToDouble(r['expected_gust']      ?? r['expectedGust']      ?? r['expectedGustMph']      ?? r['gust']);
+      final es    = _numToDouble(r['expected_sustained'] ?? r['expectedSustained'] ?? r['expectedSustainedMph'] ?? r['sustained']);
+      final mg    = _numToDouble(r['max_gust']           ?? r['maxGust']           ?? r['maxGustMph']           ?? eg);
+      final ms    = _numToDouble(r['max_sustained']      ?? r['maxSustained']      ?? r['maxSustainedMph']      ?? es);
+      var   p     = _numToDouble(r['probability']        ?? r['p']                 ?? r['outageProb']); if (p > 1.0) p = p / 100.0;
+      final pop   = _numToInt(r['population']           ?? r['pop']);
+
+      final focus = (metric == 'gust') ? eg : es; if (focus < thresholdMph) continue;
+
+      // prefer server severity/crews when present
+      var sev = (r['severity'] ?? '').toString();
+      if (sev.isEmpty) { sev = _classifySeverity(eg, es); }
+      final crews = (r['crews'] is num) ? (r['crews'] as num).round() : _crewFallback(pop, p, eg, es);
+
+      out.add(CountyRow(county: name, state: st, expectedGust: eg, expectedSustained: es, maxGust: mg, maxSustained: ms, probability: p, crews: crews, severity: sev, confidence: _confidence(eg, es, mg, ms, p)));
+    }
+    debugPrint('[WCP] rows(after local threshold)=' + out.length.toString());
+    return out;
+  }
+
+  static String _classifySeverity(double eg, double es) {
+    const bands = <_SeverityBand>[
+      _SeverityBand('Level 1', 30, 18),
+      _SeverityBand('Level 2', 45, 25),
+      _SeverityBand('Level 3', 58, 35),
+      _SeverityBand('Level 4', 75, 45),
+    ]; var out = 'Level 0';
+    for (final b in bands) { if (eg >= b.minGust || es >= b.minSustained) out = b.level; } return out;
+  }
+  static int _confidence(double eg, double es, double mg, double ms, double p) {
+    final spread = (mg - eg).abs() + (ms - es).abs();
+    final stability = (1.0 / (1.0 + max(0.0, spread / 20.0))).clamp(0.0, 1.0);
+    final conf = (0.55 * p + 0.45 * stability) * 100.0; return conf.round().clamp(0, 100);
+  }
+  int _crewFallback(int population, double probability, double eg, double es) {
+    final raw = population * probability * 0.002;
+    double bump = 1.0
+      + (eg >= 58 ? 0.35 : eg >= 45 ? 0.20 : eg >= 30 ? 0.10 : 0.0)
+      + (es >= 35 ? 0.20 : es >= 25 ? 0.10 : 0.0);
+    int crews = (raw * bump).round();
+    if (population >= 2000000) crews = (crews * 0.85).round();
+    else if (population >= 1000000) crews = (crews * 0.90).round();
+    return crews.clamp(0, 99999);
+  }
+}
+
+// ===================== MAIN SCREEN =====================
+class WeatherCenterPro extends StatefulWidget {
+  static const route = '/weather-center-pro';
+  const WeatherCenterPro({super.key});
+  @override
+  State<WeatherCenterPro> createState() => _WeatherCenterProState();
+}
+
+class _WeatherCenterProState extends State<WeatherCenterPro> {
+  String? _wcpError;
+  bool _wcpLoading = false;
+  List<WcpRegion> _wcpRows = const [];
+  // Filters
+  String _locationMode = 'Nationwide';
+  String? _state;
+  String _region = kRegions.first;
+  WindMetric _windMetric = WindMetric.gust;
+  double _windThreshold = 45;
+  int _minSeverity = 2;
+  double _hours = 36;
+  bool _showDetails = true;
+
+  // Sorting (used when entering results page)
+  SortBy _sortBy = SortBy.gust;
+  bool _sortDesc = true;
+
+  // Provider + run flag
+  late WxProvider _provider;
+  bool _running = false;
+
+  // Seed for header average placeholder
+  final List<County> _seed = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = RealWxProvider(); // LIVE provider
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBrandBlack,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF121212),
+        elevation: 0,
+        titleSpacing: 0,
+        title: Row(
+          children: const [
+            SizedBox(width: 8),
+            _BrandDot(),
+            SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Weather Center Pro',
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.3),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: kBrandOrange, foregroundColor: Colors.black,
+                shape: const StadiumBorder(),
+              ),
+onPressed: () { debugPrint('RUN REPORT tapped'); WcpGlue.run(context); },
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Run Report'),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kBrandOrange,
+                side: const BorderSide(color: kBrandOrange),
+                shape: const StadiumBorder(),
+              ),
+              onPressed: _exportCsv,
+              icon: const Icon(Icons.file_download),
+              label: const Text('Export CSV'),
+            ),
+          ),
+        ],
+      ),
+      body: AbsorbPointer(
+        absorbing: _running,
+        child: Stack(
+          children: [
+            ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _filtersCard(),
+                const SizedBox(height: 12),
+                _kpiHeader(),
+              ],
+            ),
+            if (_running)
+              const ColoredBox(
+                color: Color(0x88000000),
+                child: Center(child: CircularProgressIndicator(color: kBrandOrange)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filtersCard() {
+    return _glassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Location row
+            Row(
+              children: [
+                Expanded(
+                  child: _pillDropdown<String>(
+                    label: 'Location',
+                    value: _locationMode,
+                    items: kLocationModes,
+                    onChanged: (v) => setState(() {
+                      _locationMode = v ?? 'Nationwide';
+                      if (_locationMode != 'State') _state = null;
+                    }),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (_locationMode == 'State')
+                  Expanded(
+                    child: _pillDropdown<String?>(
+                      label: 'State',
+                      value: _state,
+                      items: const [
+                        null,'AL','AK','AZ','AR','CA','CO','CT','DC','DE','FL','GA','HI',
+                        'IA','ID','IL','IN','KS','KY','LA','MA','MD','ME','MI','MN','MO',
+                        'MS','MT','NC','ND','NE','NH','NJ','NM','NV','NY','OH','OK','OR',
+                        'PA','RI','SC','SD','TN','TX','UT','VA','VT','WA','WI','WV','WY'
+                      ],
+                      onChanged: (v) => setState(() => _state = v),
+                    ),
+                  ),
+              ],
+            ),
+
+            if (_locationMode == 'Regional') ...[
+              const SizedBox(height: 12),
+              _pillDropdown<String>(
+                label: 'Region',
+                value: _region,
+                items: kRegions,
+                onChanged: (v) => setState(() => _region = v ?? kRegions.first),
+              ),
+            ],
+
+            const SizedBox(height: 12),
+
+            // Window slider
+            _sliderPill(
+              title: 'Window (hours)',
+              value: _hours, min: 12, max: 120, divisions: 36,
+              onChanged: (v) => setState(() => _hours = v),
+            ),
+            const SizedBox(height: 12),
+
+            // Wind metric
+            Row(
+              children: [
+                const Text('Wind Metric:', style: TextStyle(color: Colors.white70)),
+                const SizedBox(width: 10),
+                ChoiceChip(
+                  label: const Text('Gust'),
+                  selected: _windMetric == WindMetric.gust,
+                  onSelected: (_) => setState(() => _windMetric = WindMetric.gust),
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Sustained'),
+                  selected: _windMetric == WindMetric.sustained,
+                  onSelected: (_) => setState(() => _windMetric = WindMetric.sustained),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Threshold
+            _sliderPill(
+              title: _windMetric == WindMetric.gust
+                  ? 'Gust threshold (mph)'
+                  : 'Sustained threshold (mph)',
+              value: _windThreshold, min: 20, max: 80, divisions: 60,
+              onChanged: (v) => setState(() => _windThreshold = v),
+            ),
+            const SizedBox(height: 12),
+
+            // Min severity
+            Row(
+              children: [
+                const Text('Minimum Threat Level:', style: TextStyle(color: Colors.white70)),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Min Sev 2'),
+                  selected: _minSeverity == 2,
+                  onSelected: (_) => setState(() => _minSeverity = 2),
+                ),
+                const SizedBox(width: 6),
+                ChoiceChip(
+                  label: const Text('Min Sev 3'),
+                  selected: _minSeverity == 3,
+                  onSelected: (_) => setState(() => _minSeverity = 3),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiHeader() {
+    final gauge = _aggregatePreview();
+    return _glassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Wrap(
+          spacing: 12, runSpacing: 12,
+          children: [
+            _metricBox(Icons.air_rounded, 'Expected Gust', '${gauge.expectedGust.toStringAsFixed(0)} mph'),
+            _metricBox(Icons.wind_power_rounded, 'Expected Sust.', '${gauge.expectedSustained.toStringAsFixed(0)} mph'),
+            _metricBox(Icons.warning_amber_rounded, 'Severity', gauge.severity),
+            _metricBox(Icons.groups_rounded, 'Crew Rec', '${gauge.crews.toStringAsFixed(0)}'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _metricBox(IconData icon, String label, String value) {
+    return Container(
+      width: 160,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBrandOrange.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [Icon(icon, color: kBrandOrange), const SizedBox(width: 8), Text(label, style: const TextStyle(color: Colors.white70))]),
+          const SizedBox(height: 6),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  // --- Actions ---
+  Future<void> _onRunPressed() async {
+    setState(() => _running = true);
+    try {
+      final metric = _windMetric == WindMetric.gust ? 'gust' : 'sustained';
+      final rows = await _provider.fetchReport(
+        locationMode: _locationMode,
+        region: _locationMode == 'Regional' ? _region : null,
+        state: _locationMode == 'State' ? _state : null,
+        hours: _hours,
+        metric: metric,
+        thresholdMph: _windThreshold,
+      );
+
+      // Apply min severity filter locally
+      int levelOf(String s) {
+        for (int i = 0; i < s.length; i++) {
+          final c = s.codeUnitAt(i);
+          if (c >= 48 && c <= 57) return c - 48;
+        }
+        return 0;
+      }
+      final filtered = rows.where((r) => levelOf(r.severity) >= _minSeverity).toList();
+
+      if (filtered.isEmpty) {
+        _snack('No results (threshold/filters may be too tight). Try lowering the threshold.');
+        return;
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => WcProResultsPage(
+          items: filtered,
+          locationMode: _locationMode,
+          region: _region,
+          state: _state,
+          windMetric: _windMetric,
+          windThreshold: _windThreshold,
+          hours: _hours,
+          sortBy: _sortBy,
+          sortDesc: _sortDesc,
+        ),
+      ));
+    } catch (e) {
+      _snack('Run failed: $e');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  void _exportCsv() {
+    _snack('Open the Results page to export CSV (implemented there).');
+  }
+
+  _KpiSummary _aggregatePreview() {
+    // Simple preview numbers from seed
+    final g = _seed.isNotEmpty ? 35.0 : 0.0;
+    final s = _seed.isNotEmpty ? 22.0 : 0.0;
+    final sev = _classifySeverity(g, s);
+    final crews = _recommendCrews(population: 500000, probability: 0.25, expectedGust: g, expectedSustained: s).toDouble();
+    return _KpiSummary(expectedGust: g, expectedSustained: s, severity: sev, crews: crews);
+  }
+
+  static String _classifySeverity(double eg, double es) {
+    const bands = <_SeverityBand>[
+      _SeverityBand('Level 1', 30, 18),
+      _SeverityBand('Level 2', 45, 25),
+      _SeverityBand('Level 3', 58, 35),
+      _SeverityBand('Level 4', 75, 45),
+    ];
+    String out = 'Level 0';
+    for (final b in bands) {
+      if (eg >= b.minGust || es >= b.minSustained) out = b.level;
+    }
+    return out;
+  }
+
+  static int _recommendCrews({
+    required int population,
+    required double probability,
+    required double expectedGust,
+    required double expectedSustained,
+  }) {
+    final raw = population * probability * 0.002;
+    final bump = 1.0
+        + (expectedGust >= 58 ? 0.35 : expectedGust >= 45 ? 0.20 : expectedGust >= 30 ? 0.10 : 0.0)
+        + (expectedSustained >= 35 ? 0.20 : expectedSustained >= 25 ? 0.10 : 0.0);
+    var crews = (raw * bump).round();
+    if (population >= 2000000) crews = (crews * 0.85).round();
+    if (population >= 1000000) crews = (crews * 0.90).round();
+    return crews.clamp(0, 99999);
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating, backgroundColor: const Color(0xFF1E1E1E)),
+    );
+  }
+
+  // ---- UI helpers ----
+  Widget _pillDropdown<T>({
+    required String label,
+    required T value,
+    required List<T> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return _glassCard(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('$label: ', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          const SizedBox(width: 6),
+          DropdownButton<T>(
+            value: value,
+            dropdownColor: const Color(0xFF1C1C1C),
+            underline: const SizedBox.shrink(),
+            iconEnabledColor: kBrandOrange,
+            items: items.map((e) => DropdownMenuItem<T>(
+              value: e,
+              child: Text('$e', style: const TextStyle(color: Colors.white)),
+            )).toList(),
+            onChanged: onChanged,
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _sliderPill({
+    required String title,
+    required double value,
+    required double min,
+    required double max,
+    int? divisions,
+    required ValueChanged<double> onChanged,
+  }) {
+    return _glassCard(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(children: [
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              Slider(
+                min: min, max: max, value: value, divisions: divisions,
+                onChanged: onChanged, activeColor: kBrandOrange, label: value.toStringAsFixed(0),
+              ),
+            ],
+          )),
+          const SizedBox(width: 8),
+          Text(value.toStringAsFixed(0), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+        ]),
+      ),
+    );
+  }
+
+
+
+
+
+  Future<void> _fetchReport() async {
+    debugPrint('[WCP] RUN REPORT: start');
+    setState(() { _wcpLoading = true; _wcpError = null; });
+    try {
+      final api = WcpApi('https://da-wx-backend.onrender.com
+      final rows = await api.reportRegions(hours: 72, metric: 'gust', threshold: 25, minSev: 0, scope: 'nationwide');
+      setState(() { _wcpRows = rows; _wcpLoading = false; });
+      debugPrint('[WCP] rows(after server)=' + rows.length.toString());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('WCP OK: ' + rows.length.toString() + ' rows'))
+        );
+      }
+    } catch (e) {
+      setState(() { _wcpLoading = false; _wcpError = e.toString(); });
+      debugPrint('[WCP][ERR] ' + e.toString());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('WCP ERROR: ' + e.toString()))
+        );
+      }
+    }
+    debugPrint('[WCP] RUN REPORT: end');
+  }
+
+}
+
+// Header KPI model
+class _KpiSummary {
+  final double expectedGust;
+  final double expectedSustained;
+  final String severity;
+  final double crews;
+  const _KpiSummary({
+    required this.expectedGust,
+    required this.expectedSustained,
+    required this.severity,
+    required this.crews,
+
+  Future<void> _fetchReport() async {
+    debugPrint('[WCP] RUN REPORT: start');
+    setState(() { _wcpLoading = true; _wcpError = null; });
+    try {
+      final api = WcpApi('https://da-wx-backend.onrender.com
+      final url = 'https://da-wx-backend.onrender.com
+      debugPrint('[WCP] GET ' + url);
+      final rows = await api.reportRegions(hours: 72, metric: 'gust', threshold: 35, minSev: 0, scope: 'nationwide');
+      setState(() { _wcpRows = rows; _wcpLoading = false; });
+      debugPrint('[WCP] rows(after server)=' + rows.length.toString());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('WCP OK: ' + rows.length.toString() + ' rows'))
+        );
+      }
+    } catch (e) {
+      setState(() { _wcpLoading = false; _wcpError = e.toString(); });
+      debugPrint('[WCP][ERR] ' + e.toString());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('WCP ERROR: ' + e.toString()))
+        );
+      }
+    }
+    debugPrint('[WCP] RUN REPORT: end');
+  }
+
+  });
+}
+
+// Brand dot
+class _BrandDot extends StatelessWidget {
+  const _BrandDot();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 10, height: 10,
+      decoration: const BoxDecoration(color: kBrandOrange, shape: BoxShape.circle),
+    );
+  }
+}
+
+// ============================ RESULTS PAGE ============================
+class WcProResultsPage extends StatefulWidget {
+  final List<CountyRow> items;
+  final String locationMode;
+  final String region;
+  final String? state;
+  final WindMetric windMetric;
+  final double windThreshold;
+  final double hours;
+  final SortBy sortBy;
+  final bool sortDesc;
+  const WcProResultsPage({
+    super.key,
+    required this.items,
+    required this.locationMode,
+    required this.region,
+    required this.state,
+    required this.windMetric,
+    required this.windThreshold,
+    required this.hours,
+    required this.sortBy,
+    required this.sortDesc,
+  });
+  @override
+  State<WcProResultsPage> createState() => _WcProResultsPageState();
+}
+
+class _WcProResultsPageState extends State<WcProResultsPage> {
+  late List<CountyRow> _rows;
+  late SortBy _sortBy;
+  late bool _desc;
+
+  @override
+  void initState() {
+    super.initState();
+    _rows = List<CountyRow>.from(widget.items);
+    _sortBy = widget.sortBy;
+    _desc = widget.sortDesc;
+    _applySort();
+  }
+
+  void _applySort() {
+    int sevLevel(String s) {
+      for (int i = 0; i < s.length; i++) {
+        final c = s.codeUnitAt(i);
+        if (c >= 48 && c <= 57) return c - 48;
+      }
+      return 0;
+    }
+    int comp(CountyRow a, CountyRow b) {
+      switch (_sortBy) {
+        case SortBy.gust:        return a.expectedGust.compareTo(b.expectedGust);
+        case SortBy.sustained:   return a.expectedSustained.compareTo(b.expectedSustained);
+        case SortBy.probability: return a.probability.compareTo(b.probability);
+        case SortBy.severity:    return sevLevel(a.severity).compareTo(sevLevel(b.severity));
+      }
+    }
+    _rows.sort((a,b)=> _desc ? -comp(a,b) : comp(a,b));
+  }
+
+  String _toCsv(List<CountyRow> rows) {
+    final b = StringBuffer();
+    b.writeln('County,State,ExpectedGust,ExpectedSustained,MaxGust,MaxSustained,Probability,Confidence,CrewRec,Severity');
+    for (final r in rows) {
+      b.writeln('${r.county},${r.state},'
+        '${r.expectedGust.toStringAsFixed(1)},${r.expectedSustained.toStringAsFixed(1)},'
+        '${r.maxGust.toStringAsFixed(1)},${r.maxSustained.toStringAsFixed(1)},'
+        '${(r.probability*100).toStringAsFixed(0)}%,${r.confidence}%,${r.crews},${r.severity}');
+    }
+    return b.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBrandBlack,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF121212),
+        title: const Text('Results'),
+        actions: [
+          IconButton(
+            tooltip: 'Export CSV',
+            icon: const Icon(Icons.download),
+            onPressed: (){
+              final csv = _toCsv(_rows);
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: const Color(0xFF141414),
+                  title: const Text('CSV', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  content: SingleChildScrollView(
+                    child: SelectableText(csv, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  ),
+                  actions: [ TextButton(onPressed: ()=>Navigator.of(ctx).pop(), child: const Text('Close', style: TextStyle(color: kBrandOrange))) ],
+                ),
+              );
+            },
+          ),
+          PopupMenuButton<SortBy>(
+            icon: const Icon(Icons.sort),
+            initialValue: _sortBy,
+            onSelected: (s){ setState((){ _sortBy = s; _applySort(); }); },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: SortBy.gust,        child: Text('Sort by Expected Gust')),
+              PopupMenuItem(value: SortBy.sustained,   child: Text('Sort by Expected Sustained')),
+              PopupMenuItem(value: SortBy.probability, child: Text('Sort by Probability')),
+              PopupMenuItem(value: SortBy.severity,    child: Text('Sort by Severity')),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.swap_vert),
+            onPressed: (){ setState(() { _desc = !_desc; _applySort(); }); },
+            tooltip: 'Toggle sort order',
+          ),
+        ],
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _rows.length,
+        itemBuilder: (ctx, idx) {
+          final r = _rows[idx];
+          return _ResultCard(
+            row: r,
+            onTap: (){
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => WcProDetailPage(row: r),
+              ));
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ResultCard extends StatelessWidget {
+  final CountyRow row;
+  final VoidCallback onTap;
+  const _ResultCard({required this.row, required this.onTap});
+  @override
+  Widget build(BuildContext context){
+    return Card(
+      color: const Color(0xFF121212),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: kBrandOrange.withOpacity(0.25)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const Icon(Icons.location_on_outlined, color: kBrandOrange),
+                const SizedBox(width: 8),
+                Expanded(child: Text('${row.county}, ${row.state}', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
+                _badge(text: row.severity, color: Colors.orange),
+                const SizedBox(width: 8),
+                _badge(text: '${(row.probability*100).round()}%', color: Colors.tealAccent.shade400),
+              ]),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _metricTile(Icons.air_rounded, 'Exp Gust', '${row.expectedGust.toStringAsFixed(0)} mph')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _metricTile(Icons.wind_power_rounded, 'Exp Sust.', '${row.expectedSustained.toStringAsFixed(0)} mph')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _metricTile(Icons.trending_up, 'Max Gust', '${row.maxGust.toStringAsFixed(0)} mph')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _metricTile(Icons.trending_neutral, 'Max Sust.', '${row.maxSustained.toStringAsFixed(0)} mph')),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _metricTile(Icons.shield_outlined, 'Confidence', '${row.confidence}%')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _metricTile(Icons.groups_rounded, 'Crew Rec', '${row.crews}')),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _metricTile(IconData icon, String label, String value){
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F0F0F),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kBrandOrange.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children:[
+            Icon(icon, size: 16, color: kBrandOrange),
+            const SizedBox(width: 4),
+            Flexible(child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            )),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _badge({required String text, required Color color}){
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal:8, vertical:4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        border: Border.all(color: color.withOpacity(0.7)),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+// ============================ DETAIL PAGE ============================
+class WcProDetailPage extends StatelessWidget {
+  final CountyRow row;
+  const WcProDetailPage({super.key, required this.row});
+  @override
+  Widget build(BuildContext context){
+    return Scaffold(
+      backgroundColor: kBrandBlack,
+      appBar: AppBar(title: Text('${row.county}, ${row.state}')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _info('Expected Gust', '${row.expectedGust.toStringAsFixed(1)} mph'),
+          _info('Expected Sustained', '${row.expectedSustained.toStringAsFixed(1)} mph'),
+          _info('Max Gust', '${row.maxGust.toStringAsFixed(1)} mph'),
+          _info('Max Sustained', '${row.maxSustained.toStringAsFixed(1)} mph'),
+          _info('Probability', '${(row.probability*100).toStringAsFixed(0)} %'),
+          _info('Confidence', '${row.confidence} %'),
+          _info('Crew Recommendation', '${row.crews} crews'),
+        ],
+      ),
+    );
+  }
+
+  Widget _info(String label, String value){
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBrandOrange.withOpacity(0.25)),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: const TextStyle(color: Colors.white70))),
+          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================ UI UTILITIES ===========================
+Widget _glassCard({required Widget child}) {
+  final r = BorderRadius.circular(16);
+  return Container(
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF0A0A0A), Color(0xFF141414)],
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
+      ),
+      borderRadius: r,
+      border: Border.all(color: kBrandOrange.withOpacity(0.25), width: 1.0),
+      boxShadow: [ BoxShadow(color: kBrandOrange.withOpacity(0.15), blurRadius: 24, spreadRadius: 1, offset: const Offset(0, 8)) ],
+    ),
+    child: ClipRRect(
+      borderRadius: r,
+      child: BackdropFilter(filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8), child: child),
+    ),
+  );
+}
+
+Widget _metric(String title, String value, IconData icon) {
+  return Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFF111111),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: kBrandOrange.withOpacity(0.3)),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: kBrandOrange),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(color: Colors.white70)),
+              const SizedBox(height: 4),
+              Text(value, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _space() => const SizedBox(height: 12);
+
+
+
+
+
+
+
+
+
+class WcpGlue {
+
+  static Future<void> run(BuildContext context) async {
+
+    debugPrint('[WCP] RUN REPORT: start');
+
+    try {
+
+      final api = WcpApi('https://da-wx-backend.onrender.com
+
+      final rows = await api.reportRegions(
+
+        hours: 72, metric: 'gust', threshold: 25, minSev: 0, scope: 'nationwide'
+
+      );
+
+      debugPrint('[WCP] rows(after server)=' + rows.length.toString());
+
+      ScaffoldMessenger.of(context).showSnackBar(
+
+        SnackBar(content: Text('WCP OK: ' + rows.length.toString() + ' rows'))
+
+      );
+
+    } catch (e) {
+
+      debugPrint('[WCP][ERR] ' + e.toString());
+
+      ScaffoldMessenger.of(context).showSnackBar(
+
+        SnackBar(content: Text('WCP ERROR: ' + e.toString()))
+
+      );
+
+    }
+
+    debugPrint('[WCP] RUN REPORT: end');
+
+  }
+
+}

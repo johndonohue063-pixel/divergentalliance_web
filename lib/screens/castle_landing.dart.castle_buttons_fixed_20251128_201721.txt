@@ -1,0 +1,45 @@
+﻿/// ARBOR FIX: Use this Row for the two main Castle Landing buttons
+/// Replace your existing Row of two big buttons with this block.
+
+Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Expanded(
+        child: SizedBox(
+          height: 52,
+          child: ElevatedButton(
+            onPressed: () {
+              // TODO: your existing onPressed for Weather Center Pro
+              // e.g. Navigator.pushNamed(context, '/weatherCenterPro');
+            },
+            child: const Text(
+              'Weather Center Pro',
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: SizedBox(
+          height: 52,
+          child: ElevatedButton(
+            onPressed: () {
+              // TODO: your existing onPressed for Storm Response / other
+            },
+            child: const Text(
+              'Storm Response',
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ),
+    ],
+  ),
+)

@@ -1,0 +1,1080 @@
+﻿import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:marquee/marquee.dart';
+
+/// Compatibility wrapper so existing routes and screens can still use
+/// `WeatherCenterPro()` and get the new neon experience.
+class WeatherCenterPro extends StatelessWidget {
+  const WeatherCenterPro({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const NeonWeatherCenterPro();
+  }
+}
+
+/// Data model for a single county forecast row coming from the backend.
+class CountyForecast {
+  final String county;
+  final String state;
+  final double expectedGust;
+  final double expectedSustained;
+  final double maxGust;
+  final double maxSustained;
+  final double probability;
+  final int crews;
+  final int severityLevel;
+  final int confidence;
+  final int population;
+  final int predictedCustomersOut;
+  final double gridStressIndex;
+  final String gsiLevel;
+  final DateTime? generatedAt;
+  final String source;
+  final String upstreamStamp;
+  final double? lat;
+  final double? lon;
+
+  CountyForecast({
+    required this.county,
+    required this.state,
+    required this.expectedGust,
+    required this.expectedSustained,
+    required this.maxGust,
+    required this.maxSustained,
+    required this.probability,
+    required this.crews,
+    required this.severityLevel,
+    required this.confidence,
+    required this.population,
+    required this.predictedCustomersOut,
+    required this.gridStressIndex,
+    required this.gsiLevel,
+    required this.generatedAt,
+    required this.source,
+    required this.upstreamStamp,
+    this.lat,
+    this.lon,
+  });
+
+  factory CountyForecast.fromJson(Map<String, dynamic> json) {
+    double _asDouble(dynamic v) {
+      if (v == null) return 0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0;
+    }
+
+    int _asInt(dynamic v) {
+      if (v == null) return 0;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString()) ?? 0;
+    }
+
+    String _asString(dynamic v) => v?.toString() ?? '';
+
+    String? dateStr = json['generated_at']?.toString() ??
+        json['generatedAt']?.toString() ??
+        json['generated_at_utc']?.toString();
+
+    DateTime? generatedAt;
+    if (dateStr != null && dateStr.isNotEmpty) {
+      generatedAt = DateTime.tryParse(dateStr);
+    }
+
+    return CountyForecast(
+      county: _asString(json['county'] ?? json['County']),
+      state: _asString(json['state'] ?? json['State']),
+      expectedGust: _asDouble(json['expected_gust'] ?? json['expectedGust']),
+      expectedSustained:
+          _asDouble(json['expected_sustained'] ?? json['expectedSustained']),
+      maxGust: _asDouble(json['max_gust'] ?? json['maxGust']),
+      maxSustained: _asDouble(json['max_sustained'] ?? json['maxSustained']),
+      probability: _asDouble(json['probability'] ?? json['prob']),
+      crews: _asInt(json['crews']),
+      severityLevel: _asInt(json['severity_level'] ?? json['severityLevel']),
+      confidence: _asInt(json['confidence']),
+      population: _asInt(json['population'] ?? json['pop']),
+      predictedCustomersOut: _asInt(
+          json['predicted_customers_out'] ?? json['predictedCustomersOut']),
+      gridStressIndex:
+          _asDouble(json['grid_stress_index'] ?? json['gridStressIndex']),
+      gsiLevel: _asString(json['gsi_level'] ?? json['gsiLevel']),
+      generatedAt: generatedAt,
+      source: _asString(json['source']),
+      upstreamStamp: _asString(json['upstream_stamp'] ?? json['upstreamStamp']),
+      lat: json.containsKey('lat') ? _asDouble(json['lat']) : null,
+      lon: json.containsKey('lon') ? _asDouble(json['lon']) : null,
+    );
+  }
+}
+
+/// Compact formatter for big integers (e.g. 12345 -> "12.3k").
+String formatInt(int v) {
+  if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+  if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
+  return v.toString();
+}
+
+class NeonWeatherCenterPro extends StatefulWidget {
+  const NeonWeatherCenterPro({super.key});
+
+  @override
+  State<NeonWeatherCenterPro> createState() => _NeonWeatherCenterProState();
+}
+
+class _NeonWeatherCenterProState extends State<NeonWeatherCenterPro> {
+  static const _backendBase = 'https://da-wx-backend-1.onrender.com';
+
+  static const List<String> _stateCodes = <String>[
+    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+    'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+    'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+    'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+    'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
+  ];
+
+  String _selectedState = 'DE';
+  double _hours = 36;
+  bool _loading = false;
+  List<CountyForecast> _forecasts = <CountyForecast>[];
+
+  int _totalPredictedOut() =>
+      _forecasts.fold<int>(0, (a, c) => a + c.predictedCustomersOut);
+
+  int _totalCrews() => _forecasts.fold<int>(0, (a, c) => a + c.crews);
+
+  int _totalPopulation() =>
+      _forecasts.fold<int>(0, (a, c) => a + c.population);
+
+  double _maxGsi() {
+    if (_forecasts.isEmpty) return 0;
+    double max = _forecasts.first.gridStressIndex;
+    for (final c in _forecasts) {
+      if (c.gridStressIndex > max) max = c.gridStressIndex;
+    }
+    return max;
+  }
+
+  int _gsiLevelFrom(double v) {
+    if (v >= 0.8) return 3;
+    if (v >= 0.5) return 2;
+    if (v >= 0.25) return 1;
+    return 0;
+  }
+
+  String _gsiLabel(double v) {
+    switch (_gsiLevelFrom(v)) {
+      case 3:
+        return 'Severe';
+      case 2:
+        return 'High';
+      case 1:
+        return 'Elevated';
+      default:
+        return 'Normal';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final textTheme =
+        GoogleFonts.orbitronTextTheme(theme.textTheme).apply(
+      bodyColor: Colors.white,
+      displayColor: Colors.white,
+    );
+
+    return Theme(
+      data: theme.copyWith(
+        textTheme: textTheme,
+        scaffoldBackgroundColor: const Color(0xFF050608),
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF050608),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: NeonTicker(
+                  text:
+                      'Materials & Storm Ops ready • ${_selectedState.toUpperCase()} • ${formatInt(_totalPredictedOut())} predicted customers out • ${_hours.round()}h window',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Column(
+                    children: [
+                      _Panel(child: _buildControlsCard()),
+                      const SizedBox(height: 10),
+                      _Panel(child: _buildStateGridStressCard()),
+                      const SizedBox(height: 18),
+                      _buildRunButton(),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.brightness_1,
+            size: 10,
+            color: Color(0xFFFF6A00),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Divergent Weather',
+            style: GoogleFonts.orbitron(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: Colors.white,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(
+              Icons.file_download_outlined,
+              size: 18,
+              color: Colors.white60,
+            ),
+            tooltip: 'Export CSV',
+            onPressed: _forecasts.isEmpty ? null : _exportCsv,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlsCard() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: const [
+          Icon(
+            Icons.tune_rounded,
+            size: 18,
+            color: Color(0xFFFF6A00),
+          ),
+          SizedBox(width: 8),
+          Text(
+            'Forecast controls',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      const Text(
+        'State',
+        style: TextStyle(
+          fontSize: 11,
+          color: Colors.white70,
+        ),
+      ),
+      const SizedBox(height: 6),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: Color(0xFFFF6A00),
+            width: 1.3,
+          ),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _selectedState,
+            isExpanded: true,
+            dropdownColor: const Color(0xFF101214),
+            items: _stateCodes
+                .map(
+                  (code) => DropdownMenuItem<String>(
+                    value: code,
+                    child: Text(code),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _selectedState = value;
+              });
+            },
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      const Text(
+        'Forecast window (hours)',
+        style: TextStyle(
+          fontSize: 11,
+          color: Colors.white70,
+        ),
+      ),
+      SliderTheme(
+        data: SliderTheme.of(context).copyWith(
+          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+        ),
+        child: Slider(
+          min: 12,
+          max: 120,
+          divisions: 9,
+          value: _hours,
+          onChanged: (v) {
+            setState(() {
+              _hours = v;
+            });
+          },
+        ),
+      ),
+      Row(
+        children: [
+          Text(
+            'h',
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Spacer(),
+          const Text(
+            '36h window (up to 5 days)',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.white54,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}Widget _buildStateGridStressCard() {
+    final gsi = _maxGsi();
+    final level = _gsiLabel(gsi);
+    final levelTag = 'Lvl ${_gsiLevelFrom(gsi)} • $level';
+    final percent = gsi.clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.grid_4x4_rounded,
+              size: 18,
+              color: Color(0xFFFF6A00),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'State Grid Stress',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Text(
+                levelTag,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            NeonGauge(
+              percent: percent,
+              label: '${(percent * 100).round()}%',
+              caption: level,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _kpiPill(
+                          icon: Icons.flash_on_rounded,
+                          title: 'Pred Cust Out',
+                          value: formatInt(_totalPredictedOut()),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _kpiPill(
+                          icon: Icons.people_alt_rounded,
+                          title: 'Crews',
+                          value: formatInt(_totalCrews()),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _kpiPill(
+                          icon: Icons.location_city_rounded,
+                          title: 'Pop L2+ L3+',
+                          value: formatInt(_totalPopulation()),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRunButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _loading ? null : _runForecast,
+        icon: _loading
+            ? SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.black),
+                ),
+              )
+            : const Icon(Icons.analytics_outlined),
+        label: Text(_loading ? 'Running…' : 'Execute report'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFF6A00),
+          foregroundColor: Colors.black,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiPill({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFFFF6A00), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runForecast() async {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _loading = true;
+    });
+
+    try {
+      final fresh = await _fetchStateForecast(_selectedState);
+      debugPrint(
+          'NEON WX: fetched ${fresh.length} rows for $_selectedState (${_hours.round()} h)');
+      if (!mounted) return;
+      setState(() {
+        _forecasts = fresh;
+        _loading = false;
+      });
+
+      if (fresh.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No forecast rows returned for $_selectedState (${_hours.round()}h window).',
+            ),
+          ),
+        );
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => NeonResultsPage(
+              stateCode: _selectedState,
+              hours: _hours.round(),
+              forecasts: fresh,
+            ),
+          ),
+        );
+      }
+    } catch (e, st) {
+      debugPrint('NEON WX: error $e\n$st');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Forecast run failed: $e'),
+        ),
+      );
+    }
+  }
+
+  Future<List<CountyForecast>> _fetchStateForecast(String stateCode) async {
+    final uri = Uri.parse(
+      '$_backendBase/api/wx?mode=State&state=$stateCode&hours=${_hours.round()}',
+    );
+
+    final client = HttpClient();
+    try {
+      final req = await client.getUrl(uri);
+      req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      final resp = await req.close();
+      final body = await resp.transform(utf8.decoder).join();
+      debugPrint(
+          'NEON WX backend ${resp.statusCode} for $stateCode ${_hours.round()}h -> ${body.length} bytes');
+
+      if (resp.statusCode != 200) {
+        throw HttpException('Backend returned ${resp.statusCode}');
+      }
+
+      final decoded = json.decode(body);
+      final List<CountyForecast> list = <CountyForecast>[];
+
+      void addFrom(dynamic item) {
+        if (item is Map<String, dynamic>) {
+          list.add(CountyForecast.fromJson(item));
+        } else if (item is Map) {
+          list.add(
+            CountyForecast.fromJson(
+              item.map(
+                (k, v) => MapEntry(k.toString(), v),
+              ),
+            ),
+          );
+        }
+      }
+
+      if (decoded is List) {
+        for (final item in decoded) {
+          addFrom(item);
+        }
+      } else if (decoded is Map && decoded['rows'] is List) {
+        for (final item in decoded['rows']) {
+          addFrom(item);
+        }
+      } else {
+        debugPrint('NEON WX: unexpected JSON shape from backend.');
+      }
+
+      return list;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<void> _exportCsv() async {
+    if (_forecasts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No forecast rows to export yet.'),
+        ),
+      );
+      return;
+    }
+
+    final sb = StringBuffer();
+    sb.writeln(
+      'county,state,expected_gust,expected_sustained,max_gust,max_sustained,probability,crews,severity_level,confidence,population,predicted_customers_out,grid_stress_index,gsi_level,generated_at,source,upstream_stamp',
+    );
+
+    for (final CountyForecast c in _forecasts) {
+      sb.writeln([
+        c.county,
+        c.state,
+        c.expectedGust.toStringAsFixed(1),
+        c.expectedSustained.toStringAsFixed(1),
+        c.maxGust.toStringAsFixed(1),
+        c.maxSustained.toStringAsFixed(1),
+        c.probability.toStringAsFixed(2),
+        c.crews.toString(),
+        c.severityLevel.toString(),
+        c.confidence.toString(),
+        c.population.toString(),
+        c.predictedCustomersOut.toString(),
+        c.gridStressIndex.toStringAsFixed(3),
+        c.gsiLevel,
+        c.generatedAt?.toIso8601String() ?? '',
+        c.source,
+        c.upstreamStamp,
+      ].join(','));
+    }
+
+    debugPrint('NEON WX CSV:\n$sb');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('CSV generated (see debug log).'),
+      ),
+    );
+  }
+}
+
+class _Panel extends StatelessWidget {
+  final Widget child;
+
+  const _Panel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(24),
+        border:
+            Border.all(color: const Color(0xFFFF6A00).withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF6A00).withOpacity(0.25),
+            blurRadius: 24,
+            spreadRadius: 0.2,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class NeonTicker extends StatelessWidget {
+  final String text;
+
+  const NeonTicker({required this.text, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(
+      color: Colors.white70,
+      fontSize: 12,
+    );
+
+    return SizedBox(
+      height: 32,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.campaign_rounded,
+              size: 14,
+              color: Color(0xFFFF6A00),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ClipRect(
+                child: Marquee(
+                  text: text,
+                  style: style,
+                  blankSpace: 40,
+                  velocity: 22.0,
+                  pauseAfterRound: const Duration(seconds: 1),
+                  startPadding: 0,
+                  accelerationDuration: const Duration(seconds: 1),
+                  accelerationCurve: Curves.linear,
+                  decelerationDuration:
+                      const Duration(milliseconds: 500),
+                  decelerationCurve: Curves.easeOut,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class NeonGauge extends StatelessWidget {
+  final double percent;
+  final String label;
+  final String caption;
+
+  const NeonGauge({
+    super.key,
+    required this.percent,
+    required this.label,
+    required this.caption,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = percent.clamp(0.0, 1.0);
+
+    return SizedBox(
+      width: 110,
+      height: 110,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 90,
+            height: 90,
+            child: CircularProgressIndicator(
+              value: clamped,
+              strokeWidth: 6,
+              backgroundColor: Colors.white10,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFFFF6A00),
+              ),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                caption,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class NeonResultsPage extends StatelessWidget {
+  final String stateCode;
+  final int hours;
+  final List<CountyForecast> forecasts;
+
+  const NeonResultsPage({
+    super.key,
+    required this.stateCode,
+    required this.hours,
+    required this.forecasts,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final list = List<CountyForecast>.from(forecasts)
+      ..sort(
+        (a, b) => b.gridStressIndex.compareTo(a.gridStressIndex),
+      );
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF050608),
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text('Results \u2022 $stateCode'),
+      ),
+      body: SafeArea(
+        child: list.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 40,
+                        color: Colors.white38,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No counties returned for $stateCode',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Try adjusting the forecast window or check backend availability.',
+                        style: TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: list.length,
+                itemBuilder: (ctx, index) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: NeonCountyTile(
+                      forecast: list[index],
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+class NeonCountyTile extends StatelessWidget {
+  final CountyForecast forecast;
+
+  const NeonCountyTile({super.key, required this.forecast});
+
+  @override
+  Widget build(BuildContext context) {
+    final gsi = forecast.gridStressIndex;
+    final double percent = gsi.clamp(0.0, 1.0);
+    final String level;
+    if (forecast.gsiLevel.isNotEmpty) {
+      level = forecast.gsiLevel;
+    } else if (percent >= 0.8) {
+      level = 'Severe';
+    } else if (percent >= 0.5) {
+      level = 'High';
+    } else if (percent >= 0.25) {
+      level = 'Elevated';
+    } else {
+      level = 'Normal';
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(18),
+        border:
+            Border.all(color: const Color(0xFFFF6A00).withOpacity(0.5)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '${forecast.county}, ${forecast.state}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  color: Colors.black.withOpacity(0.7),
+                ),
+                child: Text(
+                  level,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                'Max gust ${forecast.maxGust.toStringAsFixed(1)} kt',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Prob ${(forecast.probability * 100).toStringAsFixed(0)}%',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _miniKpi(
+                icon: Icons.flash_on,
+                label: 'Pred out',
+                value: formatInt(forecast.predictedCustomersOut),
+              ),
+              const SizedBox(width: 8),
+              _miniKpi(
+                icon: Icons.people,
+                label: 'Crews',
+                value: formatInt(forecast.crews),
+              ),
+              const SizedBox(width: 8),
+              _miniKpi(
+                icon: Icons.location_city,
+                label: 'Pop',
+                value: formatInt(forecast.population),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniKpi({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Expanded(
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white.withOpacity(0.04),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: const Color(0xFFFF6A00),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.white54,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

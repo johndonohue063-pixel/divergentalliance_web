@@ -1,0 +1,1086 @@
+﻿import 'package:flutter/material.dart';
+import '../theme/da_nuclear_theme.dart';
+import 'package:divergent_alliance/pages/weather_results.dart';
+
+class WeatherCenterPro extends StatefulWidget {
+  const WeatherCenterPro({super.key});
+
+  @override
+  State<WeatherCenterPro> createState() => _WeatherCenterProState();
+}
+
+class _WeatherCenterProState extends State<WeatherCenterPro> {
+  @override
+  void initState() {
+    super.initState();
+    _primeBackend();
+  }
+
+  void _primeBackend() {
+    // WxBackendService.warm(); // commented out by DA compile fix (service not found)
+  }
+  String? _selectedState;
+  double _hoursOut = 24;
+
+  static const List<String> _usStates = <String>[
+    'Alabama',
+    'Alaska',
+    'Arizona',
+    'Arkansas',
+    'California',
+    'Colorado',
+    'Connecticut',
+    'Delaware',
+    'Florida',
+    'Georgia',
+    'Hawaii',
+    'Idaho',
+    'Illinois',
+    'Indiana',
+    'Iowa',
+    'Kansas',
+    'Kentucky',
+    'Louisiana',
+    'Maine',
+    'Maryland',
+    'Massachusetts',
+    'Michigan',
+    'Minnesota',
+    'Mississippi',
+    'Missouri',
+    'Montana',
+    'Nebraska',
+    'Nevada',
+    'New Hampshire',
+    'New Jersey',
+    'New Mexico',
+    'New York',
+    'North Carolina',
+    'North Dakota',
+    'Ohio',
+    'Oklahoma',
+    'Oregon',
+    'Pennsylvania',
+    'Rhode Island',
+    'South Carolina',
+    'South Dakota',
+    'Tennessee',
+    'Texas',
+    'Utah',
+    'Vermont',
+    'Virginia',
+    'Washington',
+    'West Virginia',
+    'Wisconsin',
+    'Wyoming',
+  ];
+
+  // Simple population bands just to weight the visuals a little.
+  static const Set<String> _largeStates = <String>{
+    'California',
+    'Texas',
+    'Florida',
+    'New York',
+    'Illinois',
+    'Pennsylvania',
+    'Ohio',
+    'Georgia',
+    'North Carolina',
+    'Michigan',
+  };
+
+  static const Set<String> _lowStates = <String>{
+    'Wyoming',
+    'Vermont',
+    'North Dakota',
+    'South Dakota',
+    'Delaware',
+    'Montana',
+    'Rhode Island',
+    'Alaska',
+  };
+
+  static const Color _bgPanel = Color(0xFF15151F);
+  static const Color _borderMetal = Color(0xFF272733);
+  static const Color _accent = Color(0xFFFF9100);
+  static const Color _accentSoft = Color(0xFFFFB74D);
+  static const Color _danger = Color(0xFFFF1744);
+
+  @override
+  Widget build(BuildContext context) {
+    final double riskScore = _computeRiskScore().clamp(0.0, 1.0);
+    final String riskLabel = _riskLabelForScore(riskScore);
+    final Color riskColor = _riskColorForScore(riskScore);
+
+    final String customersBand = _customersBandLabel(riskScore);
+    final String crewsBand = _crewsBandLabel(riskScore);
+    final String pressureLabel = _outagePressureLabel(riskScore);
+    final String windowLabel = _windowLabel();
+    final String stateLabel = _selectedState ?? 'Choose a state';
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: AspectRatio(
+          aspectRatio: 1024 / 1536,
+          child: Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('lib/screens/pronukedash.png'),
+                fit: BoxFit.contain,
+              ),
+            ),
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final double w = constraints.maxWidth;
+                final double h = constraints.maxHeight;
+
+                return Stack(
+                  children: <Widget>[
+                    // Top-left large display: state impact console.
+                    Positioned(
+                      left: w * 0.07,
+                      right: w * 0.41,
+                      top: h * 0.17,
+                      child: _buildConsolePanel(
+                        riskScore: riskScore,
+                        riskLabel: riskLabel,
+                        riskColor: riskColor,
+                        customersBand: customersBand,
+                        crewsBand: crewsBand,
+                        pressureLabel: pressureLabel,
+                        windowLabel: windowLabel,
+                        stateLabel: stateLabel,
+                      ),
+                    ),
+
+                    // Top-right medium display: brand + ticker strip.
+                    Positioned(
+                      left: w * 0.40,
+                      right: w * 0.35,
+                      top: h * 0.22,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          _buildBrandPanel(),
+                          const SizedBox(height: 6),
+                          _buildTickerStrip(
+                            stateLabel: stateLabel,
+                            riskLabel: riskLabel,
+                            customersBand: customersBand,
+                            crewsBand: crewsBand,
+                            windowLabel: windowLabel,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Middle-left large display: NOAA radar.
+                    Positioned(
+                      left: w * 0.07,
+                      right: w * 0.41,
+                      top: h * 0.40,
+                      child: const WeatherCenterRadar(),
+                    ),
+
+                    // Bottom-right rectangle: lamp row + run button.
+                    Positioned(
+                      left: w * 0.57,
+                      right: w * 0.14,
+                      top: h * 0.63,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: <Widget>[
+                          _buildLampRow(
+                            riskScore: riskScore,
+                            customersBand: customersBand,
+                            crewsBand: crewsBand,
+                            windowLabel: windowLabel,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildRunButton(),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  // BRAND + TICKER -----------------------------------------------------------
+
+  Widget _buildBrandPanel() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101015),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _borderMetal, width: 2),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: DaNuclearTheme.backgroundDark87,
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: <Widget>[
+          // Think of this as the glowing Divergent badge.
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: DaNuclearTheme.backgroundDark,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: _accent, width: 1.5),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: _accent.withOpacity(0.7),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.construction,
+              color: _accent,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'DIVERGENT ALLIANCE',
+                style: TextStyle(
+                  color: _accentSoft,
+                  fontSize: 11,
+                  letterSpacing: 2.0,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'STATE IMPACT MODULE',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 10,
+                  letterSpacing: 1.4,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          const Icon(Icons.circle, color: Colors.grey, size: 6),
+          const SizedBox(width: 6),
+          const Icon(Icons.circle, color: Colors.grey, size: 6),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTickerStrip({
+    required String stateLabel,
+    required String riskLabel,
+    required String customersBand,
+    required String crewsBand,
+    required String windowLabel,
+  }) {
+    final String text =
+        'STATE: $stateLabel   •   THREAT: $riskLabel   •   CUSTOMERS: $customersBand   •   CREWS: $crewsBand   •   WINDOW: $windowLabel';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: DaNuclearTheme.backgroundDark.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _accentSoft, width: 1.2),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: _danger,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'LIVE',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.campaign, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // MAIN CONSOLE PANEL -------------------------------------------------------
+
+  Widget _buildConsolePanel({
+    required double riskScore,
+    required String riskLabel,
+    required Color riskColor,
+    required String customersBand,
+    required String crewsBand,
+    required String pressureLabel,
+    required String windowLabel,
+    required String stateLabel,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _bgPanel,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _borderMetal, width: 2),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: DaNuclearTheme.backgroundDark87,
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.bolt, color: _accentSoft, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'State impact radar',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                stateLabel,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // Left side: controls as physical sliders / selectors.
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'State',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildStateDropdown(),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Hours out',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Slider(
+                            value: _hoursOut,
+                            min: 6,
+                            max: 72,
+                            divisions: 11,
+                            label: '${_hoursOut.round()} h',
+                            onChanged: (double value) {
+                              setState(() {
+                                _hoursOut = value;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_hoursOut.round()} h',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: const <Widget>[
+                        Icon(Icons.circle, size: 6, color: Colors.grey),
+                        SizedBox(width: 4),
+                        Text(
+                          'Adjust window, then run report for full detail.',
+                          style: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Right side: neon threat gauge.
+              Expanded(
+                flex: 3,
+                child: _buildThreatGauge(
+                  riskScore: riskScore,
+                  riskLabel: riskLabel,
+                  riskColor: riskColor,
+                  customersBand: customersBand,
+                  crewsBand: crewsBand,
+                  pressureLabel: pressureLabel,
+                  windowLabel: windowLabel,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStateDropdown() {
+    return DropdownButtonFormField<String>(
+      decoration: const InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: Color(0xFF101018),
+        border: OutlineInputBorder(
+          borderSide: BorderSide(color: Colors.white24),
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: Colors.white24),
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+      dropdownColor: DaNuclearTheme.backgroundDark,
+      style: const TextStyle(color: Colors.white),
+      value: _usStates.contains(_selectedState) ? _selectedState : null,
+      items: _usStates
+          .map(
+            (String s) => DropdownMenuItem<String>(
+              value: s,
+              child: Text(s),
+            ),
+          )
+          .toList(),
+      onChanged: (String? value) {
+        setState(() {
+          _selectedState = value;
+        });
+      },
+    );
+  }
+
+  Widget _buildThreatGauge({
+    required double riskScore,
+    required String riskLabel,
+    required Color riskColor,
+    required String customersBand,
+    required String crewsBand,
+    required String pressureLabel,
+    required String windowLabel,
+  }) {
+    final double clamped = riskScore.clamp(0.0, 1.0);
+    final int percent = (clamped * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        const SizedBox(height: 4),
+        const Text(
+          'Overall threat',
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TweenAnimationBuilder<double>(
+          key: ValueKey<double>(clamped),
+          tween: Tween<double>(begin: 0.0, end: clamped),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutCubic,
+          builder: (BuildContext context, double value, Widget? child) {
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: <Color>[
+                    riskColor.withOpacity(0.45),
+                    Colors.transparent,
+                  ],
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: riskColor.withOpacity(0.7),
+                    blurRadius: 26,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                height: 130,
+                width: 130,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: <Widget>[
+                    SizedBox(
+                      height: 120,
+                      width: 120,
+                      child: CircularProgressIndicator(
+                        value: value,
+                        strokeWidth: 8,
+                        backgroundColor: const Color(0xFF05070D),
+                        valueColor: AlwaysStoppedAnimation<Color>(riskColor),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          '$percent%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          riskLabel,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            _smallGaugeChip(
+              icon: Icons.people_alt,
+              label: 'Cust',
+              value: customersBand,
+            ),
+            const SizedBox(width: 6),
+            _smallGaugeChip(
+              icon: Icons.groups,
+              label: 'Crews',
+              value: crewsBand,
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            _smallGaugeChip(
+              icon: Icons.power,
+              label: 'Pressure',
+              value: pressureLabel,
+            ),
+            const SizedBox(width: 6),
+            _smallGaugeChip(
+              icon: Icons.schedule,
+              label: 'Window',
+              value: windowLabel,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _smallGaugeChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF181824),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(icon, color: _accentSoft, size: 14),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 9,
+                    ),
+                  ),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // STATUS LAMP ROW ----------------------------------------------------------
+
+  Widget _buildLampRow({
+    required double riskScore,
+    required String customersBand,
+    required String crewsBand,
+    required String windowLabel,
+  }) {
+    final int percent = (riskScore.clamp(0.0, 1.0) * 100).round();
+
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: _lampTile(
+            icon: Icons.power_settings_new,
+            label: 'Grid strain',
+            footer: '$percent% index',
+            value: riskScore,
+            color: _riskColorForScore(riskScore),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _lampTile(
+            icon: Icons.people_alt,
+            label: 'Customers band',
+            footer: customersBand,
+            value: 0.6,
+            color: _accent,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _lampTile(
+            icon: Icons.groups,
+            label: 'Crew band',
+            footer: crewsBand,
+            value: 0.6,
+            color: _accentSoft,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _lampTile(
+            icon: Icons.schedule,
+            label: 'Focus window',
+            footer: windowLabel,
+            value: 0.5,
+            color: Colors.lightBlueAccent,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _lampTile({
+    required IconData icon,
+    required String label,
+    required String footer,
+    required double value,
+    required Color color,
+  }) {
+    final double v = value.clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: _bgPanel,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(icon, color: _accentSoft, size: 14),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              height: 8,
+              decoration: const BoxDecoration(
+                color: DaNuclearTheme.backgroundDark,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: v,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: <Color>[
+                          color.withOpacity(0.2),
+                          color,
+                          color.withOpacity(0.8),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            footer,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // RUN BUTTON ---------------------------------------------------------------
+
+  Widget _buildRunButton() {
+    final bool enabled = _selectedState != null;
+
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: enabled
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: _accent.withOpacity(0.7),
+                  blurRadius: 26,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor:
+                enabled ? _accent : const Color(0xFF333333),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
+          onPressed: enabled ? _onRunPressed : null,
+          child: const Text(
+            'Run state report',
+            style: TextStyle(
+              color: DaNuclearTheme.backgroundDark,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onRunPressed() {
+    if (_selectedState == null) {
+      return;
+    }
+
+    // === IMPORTANT: same navigation / parameters as before ===
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => WeatherResults(
+          isNational: false,
+          state: _selectedState ?? '',
+          region: '',
+          hoursOut: _hoursOut.toInt(),
+        ),
+      ),
+    );
+  }
+
+  // RISK HELPERS (visual only) ----------------------------------------------
+
+  int _populationBandIndex() {
+    final String? s = _selectedState;
+    if (s == null) {
+      return 1;
+    }
+    if (_largeStates.contains(s)) {
+      return 2;
+    }
+    if (_lowStates.contains(s)) {
+      return 0;
+    }
+    return 1;
+  }
+
+  double _computeRiskScore() {
+    final int popBand = _populationBandIndex();
+    double base;
+    switch (popBand) {
+      case 2:
+        base = 0.32;
+        break;
+      case 0:
+        base = 0.18;
+        break;
+      default:
+        base = 0.24;
+        break;
+    }
+
+    final double hoursNorm = (_hoursOut - 6.0) / (72.0 - 6.0);
+    final double extra = hoursNorm * 0.40;
+
+    double score = base + extra;
+    if (score < 0.08) score = 0.08;
+    if (score > 0.95) score = 0.95;
+    return score;
+  }
+
+  String _riskLabelForScore(double v) {
+    if (v < 0.30) return 'Low';
+    if (v < 0.50) return 'Elevated';
+    if (v < 0.70) return 'High';
+    return 'Severe';
+  }
+
+  Color _riskColorForScore(double v) {
+    if (v < 0.25) {
+      return const Color(0xFFFFC400);
+    }
+    if (v < 0.5) {
+      return const Color(0xFFFFD54F);
+    }
+    if (v < 0.75) {
+      return DaNuclearTheme.accentNeon;
+    }
+    return _danger;
+  }
+
+  String _customersBandLabel(double risk) {
+    final int popBand = _populationBandIndex();
+    final double exposure = risk * (0.8 + popBand * 0.4);
+    if (exposure < 0.2) return '< 10k';
+    if (exposure < 0.45) return '10–50k';
+    if (exposure < 0.7) return '50–200k';
+    return '> 200k';
+  }
+
+  String _crewsBandLabel(double risk) {
+    final double exposure = risk * (1.0 + 0.3 * _populationBandIndex());
+    if (exposure < 0.2) return '8–12 crews';
+    if (exposure < 0.45) return '12–25 crews';
+    if (exposure < 0.7) return '25–50 crews';
+    return '50+ crews';
+  }
+
+  String _outagePressureLabel(double risk) {
+    if (risk < 0.3) return 'Normal ops';
+    if (risk < 0.5) return 'Raised posture';
+    if (risk < 0.7) return 'Storm ops ready';
+    return 'Full storm posture';
+  }
+
+  String _windowLabel() {
+    if (_hoursOut <= 12) return '0–12 h';
+    if (_hoursOut <= 24) return '12–24 h';
+    if (_hoursOut <= 48) return '24–48 h';
+    return '48–72 h';
+  }
+
+  Timer? _warmTimer;
+
+  void _startWarmTimer() {
+    _warmTimer ??= Timer.periodic(const Duration(seconds: 50), (_) {
+      WxBackendService.warm();
+    });
+  }
+
+  @override
+  void dispose() {
+    _warmTimer?.cancel();
+    super.dispose();
+  }
+}
+
+// RADAR PANEL ---------------------------------------------------------------
+
+class WeatherCenterRadar extends StatelessWidget {
+  const WeatherCenterRadar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const String radarUrl =
+        'https://radar.weather.gov/ridge/standard/CONUS_loop.gif';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Text(
+          'NOAA CONUS radar',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            color: DaNuclearTheme.backgroundDark,
+            height: 230,
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 4.0,
+              child: Image.network(
+                radarUrl,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                loadingBuilder: (
+                  BuildContext context,
+                  Widget child,
+                  ImageChunkEvent? loadingProgress,
+                ) {
+                  if (loadingProgress == null) {
+                    return child;
+                  }
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                },
+                errorBuilder: (
+                  BuildContext context,
+                  Object error,
+                  StackTrace? stack,
+                ) {
+                  return const Center(
+                    child: Text(
+                      'Radar unavailable',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+/*
+  Divergent Alliance nuclear theme hooks:
+
+  import '../theme/da_nuclear_theme.dart';
+import 'dart:async';
+import 'package:divergent_alliance/services/wx_backend_service.dart';
+
+  Examples:
+
+  Container(
+    decoration: DaNuclearTheme.backgroundDecoration,
+    child: ...
+  );
+
+  ElevatedButton(
+    style: DaNuclearTheme.primaryActionButton,
+    onPressed: () { ... },
+    child: const Text('Run state report'),
+  );
+
+  // For a circular nuclear gauge, you can use DaNeonGauge from:
+  // import '../widgets/da_neon_gauge.dart';
+*/
+
+
+

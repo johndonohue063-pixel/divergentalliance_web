@@ -1,0 +1,36 @@
+﻿/// ARBOR FIX: Use this Row+Expanded or Column so the DropdownButtonFormField
+/// does not overflow horizontally.
+
+/// Option A: Label and dropdown in one Row
+Row(
+  children: [
+    const Text('Hours'),
+    const SizedBox(width: 8),
+    Expanded(
+      child: DropdownButtonFormField<String>(
+        value: _selectedHours,
+        items: _hourOptions,
+        onChanged: _onHoursChanged,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+      ),
+    ),
+  ],
+)
+
+/// Option B: Label stacked above the dropdown (full width)
+Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    const Text('Hours'),
+    const SizedBox(height: 4),
+    DropdownButtonFormField<String>(
+      value: _selectedHours,
+      items: _hourOptions,
+      onChanged: _onHoursChanged,
+      isExpanded: true,
+    ),
+  ],
+)

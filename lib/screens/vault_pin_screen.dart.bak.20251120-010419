@@ -1,0 +1,172 @@
+import 'package:flutter/material.dart';
+
+const Color _vaultOrange = Color(0xFFFF7A00);
+const int _pinLength = 4;
+
+// Start with one valid PIN. You can add more to this set later.
+const Set<String> _validPins = {'8883'};
+
+class VaultPinScreen extends StatefulWidget {
+  const VaultPinScreen({super.key});
+
+  @override
+  State<VaultPinScreen> createState() => _VaultPinScreenState();
+}
+
+class _VaultPinScreenState extends State<VaultPinScreen> {
+  final TextEditingController _controller = TextEditingController();
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+
+    // Bring up the keyboard automatically after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        FocusScope.of(context).requestFocus(_focusNode);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Full-screen vault image
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/vaultdoor.png',
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+
+          // PIN digits over the LOWER display in the art
+          Align(
+            // Tweak the Y value (second arg) if the digits are too high/low
+            alignment: const Alignment(0, 0.55),
+            child: GestureDetector(
+              onTap: () {
+                FocusScope.of(context).requestFocus(_focusNode);
+              },
+              child: _buildPinDigits(),
+            ),
+          ),
+
+          // Hidden TextField to actually receive numeric input
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SizedBox(
+              width: 1,
+              height: 1,
+              child: TextField(
+                controller: _controller,
+                focusNode: _focusNode,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                maxLength: _pinLength,
+                style: const TextStyle(color: Colors.transparent),
+                cursorColor: Colors.transparent,
+                decoration: const InputDecoration(
+                  counterText: '',
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) {
+                  // Clamp to _pinLength digits
+                  if (value.length > _pinLength) {
+                    _controller.text = value.substring(0, _pinLength);
+                    _controller.selection = TextSelection.fromPosition(
+                      TextPosition(offset: _controller.text.length),
+                    );
+                  }
+
+                  setState(() {});
+
+                  if (_controller.text.length == _pinLength) {
+                    _onPinComplete(_controller.text);
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Draw only the glowing digits, letting the frame from the image show through.
+  Widget _buildPinDigits() {
+    final text = _controller.text;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_pinLength, (index) {
+        final char = index < text.length ? text[index] : '0';
+
+        return SizedBox(
+          width: 34, // adjust for spacing inside the frame
+          child: Center(
+            child: Text(
+              char,
+              style: const TextStyle(
+                fontFamily: 'RobotoMono', // or your digital-style font
+                fontSize: 32,
+                fontWeight: FontWeight.w700,
+                color: _vaultOrange,
+                letterSpacing: 4,
+                shadows: [
+                  Shadow(
+                    blurRadius: 12,
+                    color: _vaultOrange,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  void _onPinComplete(String pin) {
+    if (_validPins.contains(pin)) {
+      // ✅ Correct PIN
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Welcome to Divergent Alliances Weather Center'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Short delay so user sees the message
+      Future.delayed(const Duration(milliseconds: 700), () {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/weather-center-pro');
+      });
+    } else {
+      // ❌ Wrong PIN
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Access denied'),
+          backgroundColor: Colors.redAccent,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      _controller.clear();
+      setState(() {});
+    }
+  }
+}

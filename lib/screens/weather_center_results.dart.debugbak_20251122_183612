@@ -1,0 +1,356 @@
+﻿import 'package:flutter/material.dart';
+import 'package:divergent_alliance/services/wx_backend_service.dart';
+
+class WeatherResults extends StatefulWidget {
+  final bool isNational;
+  final String state;
+  final String region;
+  final int hoursOut;
+
+  const WeatherResults({
+    super.key,
+    required this.isNational,
+    required this.state,
+    required this.region,
+    required this.hoursOut,
+  });
+
+  @override
+  State<WeatherResults> createState() => _WeatherResultsState();
+}
+
+class _WeatherResultsState extends State<WeatherResults> {
+  static const _kBg = Color(0xFF0E0E0E);
+  static const _kPanel = Color(0xFF141414);
+  static const _kOrange = Color(0xFFFF6A00);
+
+  bool loading = true;
+  List<Map<String, dynamic>> rows = [];
+
+  int? _threatFilter; // null = All
+  int _visible = 12;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      loading = true;
+    });
+
+    try {
+      List<Map<String, dynamic>> data;
+
+      if (widget.isNational) {
+        if (widget.region.isNotEmpty) {
+          data = await WxBackendService.fetchRegion(
+            region: widget.region,
+            hours: widget.hoursOut,
+          );
+        } else {
+          data = await WxBackendService.fetchNationwide(
+            hours: widget.hoursOut,
+          );
+        }
+      } else {
+        data = await WxBackendService.fetchState(
+          state: widget.state,
+          hours: widget.hoursOut,
+        );
+      }
+
+      setState(() {
+        rows = data;
+        loading = false;
+        _visible = 12;
+      });
+    } catch (e) {
+      setState(() {
+        loading = false;
+      });
+      debugPrint('WX BACKEND EXCEPTION (results screen): $e');
+    }
+  }
+
+  // Threat Level from severity string
+  int _levelOf(Map<String, dynamic> r) {
+    final val = int.tryParse(r["severity"].toString()) ?? 0;
+    if (val <= 0) return 1;
+    return val;
+  }
+
+  // No pre-filtering: base list is whatever the backend sent
+  List<Map<String, dynamic>> get _baseRows {
+    return rows;
+  }
+
+  // Apply threat filter only if a specific level is chosen
+  List<Map<String, dynamic>> get filteredRows {
+    final list = _baseRows;
+    if (_threatFilter == null) return list;
+    return list.where((r) => _levelOf(r) == _threatFilter).toList();
+  }
+
+  // Pagination
+  List<Map<String, dynamic>> get pagedRows {
+    final list = filteredRows;
+    final count = list.length < _visible ? list.length : _visible;
+    return list.sublist(0, count);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.isNational
+        ? (widget.region.isNotEmpty ? widget.region : 'Nationwide')
+        : widget.state;
+
+    return Scaffold(
+      backgroundColor: _kBg,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text(
+          'Results â€“ $title',
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ),
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(_kOrange),
+              ),
+            )
+          : rows.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No results returned.',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildHeader(context),
+                      const SizedBox(height: 8),
+                      _buildFilterRow(),
+                      const SizedBox(height: 8),
+                      Expanded(child: _buildList()),
+                      if (_visible < filteredRows.length) _buildNextButton(),
+                    ],
+                  ),
+                ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kOrange.withOpacity(0.5), width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.bolt,
+            color: _kOrange,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              widget.isNational
+                  ? (widget.region.isNotEmpty
+                      ? 'Regional wind-outage risk overview'
+                      : 'Nationwide wind-outage risk overview')
+                  : '${widget.state} wind-outage risk overview',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            '${widget.hoursOut}h',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterRow() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kOrange.withOpacity(0.4), width: 1),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Threat Filter:',
+            style: TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Row(
+            children: [
+              _filterButton('All', null),
+              const SizedBox(width: 8),
+              _filterButton('Lvl 1', 1),
+              const SizedBox(width: 8),
+              _filterButton('Lvl 2', 2),
+              const SizedBox(width: 8),
+              _filterButton('Lvl 3', 3),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterButton(String label, int? level) {
+    final bool active = _threatFilter == level;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _threatFilter = level;
+          _visible = 12;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? _kOrange : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: active ? _kOrange : Colors.white24,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? Colors.black : Colors.white70,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList() {
+    final list = pagedRows;
+
+    return ListView.builder(
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        final row = list[index];
+
+        final county = row['county']?.toString() ?? '';
+        final state = row['state']?.toString() ?? '';
+        final severity = _levelOf(row);
+        final expectedGust = (row['expectedGust'] ?? row['expected_gust'] ?? 0)
+            .toString();
+        final probability =
+            ((row['probability'] ?? 0) as num).toDouble() * 100.0;
+        final crews = row['crews'] ?? row['crewRecommendation'] ?? 0;
+        final customersOut =
+            row['predicted_customers_out'] ?? row['customersOut'] ?? 0;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: _kPanel,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _kOrange.withOpacity(0.4),
+              width: 1,
+            ),
+          ),
+          child: ListTile(
+            title: Text(
+              '$county, $state',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Severity: $severity | Gust: $expectedGust mph | Prob: ${probability.toStringAsFixed(0)}%',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Predicted customers out: $customersOut | Crews: $crews',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // For now, no drilldown navigation to avoid guessing constructor.
+            // You can wire this back once everything is stable.
+            onTap: null,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildNextButton() {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _kOrange,
+          foregroundColor: Colors.black,
+          minimumSize: const Size.fromHeight(40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        onPressed: () {
+          setState(() {
+            _visible += 12;
+          });
+        },
+        child: const Text(
+          'Next',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+}

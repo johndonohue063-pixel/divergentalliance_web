@@ -1,0 +1,110 @@
+﻿import 'package:flutter/material.dart';
+import 'vault_pin_screen.dart';
+import 'shop_under_const_screen.dart';
+import 'dart:async';
+import 'package:divergent_alliance/services/wx_backend_service.dart';
+
+class CastleLanding extends StatelessWidget {
+  const CastleLanding({super.key});
+
+  static Timer? _warmTimer;
+
+  void _ensureWarmTimer() {
+    _warmTimer ??= Timer.periodic(const Duration(seconds: 50), (_) {
+      WxBackendService.warm();
+    });
+    // Fire an immediate warm ping as soon as CastleLanding is built
+    WxBackendService.warm();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _ensureWarmTimer();
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Full-screen background
+          Image.asset(
+            'assets/images/wallpaper.png',
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+          ),
+
+          // Bottom circular buttons
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // WEATHER CENTER -> PIN SCREEN
+                    _RoundMenuButton(
+                      assetPath: 'assets/images/weatherbutton.png',
+                      semanticLabel: 'Weather Center',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const VaultPinScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 32),
+                    // SHOP -> UNDER CONSTRUCTION FULLSCREEN IMAGE
+                    _RoundMenuButton(
+                      assetPath: 'assets/images/shopbutton.png',
+                      semanticLabel: 'Shop',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ShopUnderConstScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoundMenuButton extends StatelessWidget {
+  final String assetPath;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  const _RoundMenuButton({
+    super.key,
+    required this.assetPath,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 120,
+        height: 120,
+        child: Image.asset(
+          assetPath,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          semanticLabel: semanticLabel,
+        ),
+      ),
+    );
+  }
+}

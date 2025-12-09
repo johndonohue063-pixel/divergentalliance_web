@@ -1,0 +1,78 @@
+﻿import 'package:flutter/material.dart';
+import 'ui/da_brand.dart';
+
+// Screens
+import 'screens/logo_splash_screen.dart';
+import 'screens/castle_landing.dart';
+import 'screens/weather_center_pro.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const DivergentApp());
+}
+
+class DivergentApp extends StatelessWidget {
+  const DivergentApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final baseTheme = ThemeData.dark();
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Divergent Alliance',
+      theme: baseTheme.copyWith(
+        scaffoldBackgroundColor: Colors.black,
+        canvasColor: const Color(0xFF0E0E0E),
+        cardColor: const Color(0xFF121212),
+        colorScheme: baseTheme.colorScheme.copyWith(
+          primary: DABrand.orange,
+          secondary: DABrand.orange,
+          surface: const Color(0xFF121212),
+          onPrimary: Colors.black,
+          onSurface: Colors.white,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 2,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: DABrand.orange,
+            foregroundColor: DABrand.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 14,
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: DABrand.orange,
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButtonThemeData.fallback().style?.copyWith(
+            side: MaterialStateProperty.all(
+              const BorderSide(color: DABrand.orange, width: 1.5),
+            ),
+          ),
+        ),
+      ),
+
+      // First Flutter screen: full-screen logo splash
+      home: const LogoSplashScreen(),
+
+      // Named routes
+      routes: {
+        '/landing': (context) => const CastleLanding(),
+        '/weather': (context) => const WeatherCenterPro(),
+        '/weather-center-pro': (context) => const WeatherCenterPro(),
+      },
+    );
+  }
+}

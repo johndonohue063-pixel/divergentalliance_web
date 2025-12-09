@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <!-- Flutter base href placeholder -->
+    <base href="$FLUTTER_BASE_HREF">
+
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta name="description" content="Divergent Alliance – Storm response, utility supply, and R&D.">
+
+    <!-- iOS meta tags & icons -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Divergent Alliance">
+    <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png"/>
+
+    <title>Divergent Alliance</title>
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background-color: #000000;
+        color: #ffffff;
+      }
+
+      body {
+        overflow: hidden;
+      }
+
+      #da-bg-video {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: -1;
+        background: #000000;
+      }
+
+      /* Portrait phones: static wallpaper, no video */
+      @media (orientation: portrait) {
+        #da-bg-video {
+          display: none;
+        }
+        body {
+          background-image: url("assets/images/wallpaper.png");
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          background-attachment: fixed;
+        }
+      }
+
+      /* Landscape / desktop: full video */
+      @media (orientation: landscape) {
+        body {
+          background-color: #000000;
+          background-image: none;
+        }
+        #da-bg-video {
+          display: block;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <video id="da-bg-video" autoplay muted loop playsinline poster="assets/images/wallpaper.png">
+      <source src="media/da_hero2.mp4" type="video/mp4">
+      <!-- Fallback: just show wallpaper if video cannot load -->
+    </video>
+
+    <script src="flutter_bootstrap.js" async></script>
+  </body>
+</html>

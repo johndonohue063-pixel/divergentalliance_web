@@ -1,0 +1,40 @@
+import 'package:flutter/material.dart';
+import 'castle_landing.dart';
+
+class LogoSplashScreen extends StatefulWidget {
+  const LogoSplashScreen({super.key});
+
+  @override
+  State<LogoSplashScreen> createState() => _LogoSplashScreenState();
+}
+
+class _LogoSplashScreenState extends State<LogoSplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+
+    // Show logo briefly, then go to CastleLanding
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const CastleLanding(),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SizedBox.expand(
+        child: Image.asset(
+          'assets/images/logo.png',   // <-- your logo
+          fit: BoxFit.cover,          // fill entire screen
+          filterQuality: FilterQuality.high,
+        ),
+      ),
+    );
+  }
+}

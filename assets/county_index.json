@@ -1,0 +1,4 @@
+{
+  "36061": { "county": "New York", "state": "NY", "lat": 40.7831, "lon": -73.9712, "population": 1628706, "utility": "ConEd", "mutualAid": "Northeast" },
+  "48201": { "county": "Harris",   "state": "TX", "lat": 29.7752, "lon": -95.3103, "population": 4837896, "utility": "CenterPoint", "mutualAid": "TXMOB" }
+}

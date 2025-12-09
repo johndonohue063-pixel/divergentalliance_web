@@ -1,0 +1,19 @@
+﻿import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+const String kWxBaseUrl = 'https://da-wx-backend-1.onrender.com';
+
+class WxApi {
+  final http.Client _client;
+
+  WxApi({http.Client? client}) : _client = client ?? http.Client();
+
+  Future<Map<String, dynamic>> getStateSummary(String state) async {
+    final uri = Uri.parse('\$kWxBaseUrl/wind/state?state=\$state&hours=36');
+    final resp = await _client.get(uri);
+    if (resp.statusCode != 200) {
+      throw Exception('Backend error \${resp.statusCode}');
+    }
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+}

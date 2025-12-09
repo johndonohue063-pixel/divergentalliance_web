@@ -1,0 +1,73 @@
+name: divergent_alliance
+description: Divergent Alliance mobile app
+publish_to: "none"
+version: 2.0.0+220
+
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/wx_reactor_wall.png
+    - assets/images/
+    - assets/images/truck_hero.png
+    - assets/ui/button_bg.png
+    - lib/screens/pronukedash.png
+    - assets/images/wx_reactor_wall.png
+    # optional, only if you add it later:
+    # - assets/images/noise.png
+    - assets/crane_icon_bright_1024.png
+    - assets/crane_splash_bright_2048x1536.png
+    - assets/icons/app_icon.png
+    - assets/images/spinninglogo.png
+
+dependencies:
+  csv: ^5.0.2
+  shared_preferences: ^2.3.2
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  url_launcher: ^6.3.1
+  provider: ^6.1.2
+  crypto: ^3.0.3
+  flutter_secure_storage: ^9.2.2
+  intl: ^0.19.0
+  geolocator: ^13.0.1
+  google_fonts: ^6.3.2
+  path_provider: ^2.1.4
+  flutter_native_splash: ^2.4.7
+  cached_network_image: ^3.4.1
+  marquee: ^2.3.0
+  video_player: ^2.10.1
+  video_player_web: ^2.4.0
+flutter_native_splash:
+  # GLOBAL
+  color: "#000000"              # full black background
+  image: assets/icons/app_icon.png
+
+  android_12:
+    # Android 12 uses these specifically
+    image: assets/icons/app_icon.png
+    color: "#000000"
+    icon_background_color: "#000000"
+
+  android: true
+  ios: true
+  web: false
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#000000"
+  remove_alpha_ios: true
+
+
