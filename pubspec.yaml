@@ -21,7 +21,6 @@ flutter:
     - assets/ui/button_bg.png
     - lib/screens/pronukedash.png
     - assets/images/wx_reactor_wall.png
-    - assets/images/noise.png
     - assets/crane_icon_bright_1024.png
     - assets/crane_splash_bright_2048x1536.png
     - assets/icons/app_icon.png
