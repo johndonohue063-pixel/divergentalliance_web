@@ -511,7 +511,7 @@ class _LandingScreenState extends State<LandingScreen>
     return FadeTransition(
       opacity: _subtitleFade,
       child: const Text(
-        'STORM SERVICES  â€¢  MATERIAL SUPPLY  â€¢  UTILITY R&D',
+        'STORM SERVICES    MATERIAL SUPPLY    UTILITY R&D',
         style: TextStyle(
           fontSize: 15,
           letterSpacing: 2.2,

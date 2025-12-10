@@ -1,4 +1,4 @@
-import "dart:convert";
+﻿import "dart:convert";
 import "dart:math" as math;
 
 import "package:flutter/material.dart";
@@ -378,7 +378,7 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
     );
   }
 
-  /// Marquee disabled – intentionally removed.
+  /// Marquee disabled  intentionally removed.
   Widget _buildMarquee() {
     return const SizedBox.shrink();
   }
@@ -615,7 +615,7 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
 
   Widget _buildRadarCard() {
     const String radarUrl =
-        "https://https://radar.weather.gov/ridge/standard/CONUS_0.gif/ridge/standard/CONUS_0.gif/ridge/standard/CONUS_loop.gif";
+        'https://tilecache.rainviewer.com/v2/radar/0/0/0/0/0.gif';
 
     return SizedBox(
       height: 210,
@@ -673,7 +673,7 @@ class _WeatherCenterProState extends State<WeatherCenterPro>
                           StackTrace? stackTrace) {
                         return const Center(
                           child: Text(
-                            "Radar unavailable",
+                            "National Radar",
                             style: TextStyle(color: Colors.white70),
                           ),
                         );
@@ -1221,3 +1221,6 @@ class _HalfDialPainter extends CustomPainter {
     return oldDelegate.fraction != fraction || oldDelegate.arcColor != arcColor;
   }
 }
+
+
+
