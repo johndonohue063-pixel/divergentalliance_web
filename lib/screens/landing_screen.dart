@@ -1,14 +1,12 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
-import 'package:divergent_alliance/ui/screens/home_screen.dart';
 import 'package:divergent_alliance/screens/weather_center_pro.dart';
 import 'package:divergent_alliance/ui/shop_under_construction.dart';
 
-/// LandingScreen:
-///  - Portrait  -> the original mobile HomeScreen (your app landing).
-///  - Landscape -> looping hero video with animated neon "ELECTRIFY THE GRID"
-///                 and Weather / Shop buttons.
+/// LandingScreen
+///  - Portrait: wallpaper + 2 big buttons (Weather Center, Shop).
+///  - Landscape: hero video background + neon intel HUD + same buttons.
 class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
 
@@ -16,16 +14,16 @@ class LandingScreen extends StatefulWidget {
   State<LandingScreen> createState() => _LandingScreenState();
 }
 
-class _LandingConfig {
-  static const String heroVideoPath = 'assets/video/da_hero.mp4';
-  static const String wallpaperPath = 'assets/images/wallpaper.png';
+class _LandingAssets {
+  static const String heroVideo = 'assets/video/da_hero.mp4';
+  static const String wallpaper = 'assets/images/wallpaper.png';
 }
 
 class _LandingScreenState extends State<LandingScreen>
     with SingleTickerProviderStateMixin {
   late final VideoPlayerController _video;
   bool _videoReady = false;
-  bool _showTapToPlay = false;
+  bool _tapToPlayVisible = false;
 
   late final AnimationController _anim;
   late final Animation<double> _fade;
@@ -35,18 +33,17 @@ class _LandingScreenState extends State<LandingScreen>
   void initState() {
     super.initState();
 
-    _video = VideoPlayerController.asset(_LandingConfig.heroVideoPath)
+    // Video controller (landscape only, but we initialise here)
+    _video = VideoPlayerController.asset(_LandingAssets.heroVideo)
       ..setLooping(true)
       ..setVolume(0)
       ..initialize().then((_) {
         if (!mounted) return;
         setState(() => _videoReady = true);
 
-        // Try autoplay; if the platform blocks it (iOS Safari) we show tap overlay.
         _video.play().catchError((_) {
-          if (mounted) {
-            setState(() => _showTapToPlay = true);
-          }
+          if (!mounted) return;
+          setState(() => _tapToPlayVisible = true);
         });
       });
 
@@ -80,18 +77,166 @@ class _LandingScreenState extends State<LandingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final bool isPortrait = size.height >= size.width;
+    final orientation = MediaQuery.of(context).orientation;
+    final isPortrait = orientation == Orientation.portrait;
 
-    // PORTRAIT  -> your original mobile landing
     if (isPortrait) {
-      return HomeScreen();
+      return _buildPortrait(context);
+    } else {
+      return _buildLandscape(context);
     }
-
-    // LANDSCAPE -> hero video + neon HUD
-    return _buildLandscape(context);
   }
 
+  // ---------------------------------------------------------------------------
+  // PORTRAIT  -> wallpaper + 2 big buttons (Weather Center, Shop)
+  // ---------------------------------------------------------------------------
+  Widget _buildPortrait(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Wallpaper
+          Image.asset(
+            _LandingAssets.wallpaper,
+            fit: BoxFit.cover,
+          ),
+
+          // Subtle dark gradient at bottom for buttons
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              height: 260,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.9),
+                    Colors.black.withOpacity(0.4),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Divergent Alliance',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      letterSpacing: 1.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Operational Weather Intelligence',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      letterSpacing: 2.0,
+                    ),
+                  ),
+                  const Spacer(),
+                  _buildMobileButtons(context),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileButtons(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF8A00),
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => WeatherCenterPro()),
+              );
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.cloud_queue_rounded, size: 22),
+                SizedBox(width: 10),
+                Text(
+                  'WEATHER CENTER',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFFF8A00),
+              side: const BorderSide(
+                color: Color(0xFFFF8A00),
+                width: 1.6,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ShopUnderConstruction()),
+              );
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.storefront_outlined, size: 22),
+                SizedBox(width: 10),
+                Text(
+                  'SHOP',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // LANDSCAPE  -> hero video + neon intel HUD
+  // ---------------------------------------------------------------------------
   Widget _buildLandscape(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
@@ -99,13 +244,12 @@ class _LandingScreenState extends State<LandingScreen>
         onTap: () {
           if (_videoReady && !_video.value.isPlaying) {
             _video.play();
-            setState(() => _showTapToPlay = false);
+            setState(() => _tapToPlayVisible = false);
           }
         },
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Background hero video
             if (_videoReady && _video.value.isInitialized)
               FittedBox(
                 fit: BoxFit.cover,
@@ -118,7 +262,6 @@ class _LandingScreenState extends State<LandingScreen>
             else
               Container(color: Colors.black),
 
-            // Dark / orange gradient overlay for intel HUD look
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -126,7 +269,7 @@ class _LandingScreenState extends State<LandingScreen>
                   end: Alignment.topCenter,
                   colors: [
                     Color(0xE6000000),
-                    Color(0x99000000),
+                    Color(0x80000000),
                     Colors.transparent,
                   ],
                 ),
@@ -153,28 +296,28 @@ class _LandingScreenState extends State<LandingScreen>
                       'Storm response, material supply, and live outage '
                       'intelligence for the crews that keep the grid alive.',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.88),
+                        color: Colors.white.withOpacity(0.86),
                         fontSize: 16,
                         letterSpacing: 0.4,
                       ),
                     ),
-                    const SizedBox(height: 32),
-                    _buildButtonsRow(context, compact: false),
+                    const SizedBox(height: 30),
+                    _buildDesktopButtons(context),
                   ],
                 ),
               ),
             ),
 
-            if (_showTapToPlay)
+            if (_tapToPlayVisible)
               Center(
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.70),
+                    color: Colors.black.withOpacity(0.75),
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: Colors.orangeAccent.withOpacity(0.9),
+                      color: Colors.orangeAccent,
                       width: 1.5,
                     ),
                   ),
@@ -182,14 +325,13 @@ class _LandingScreenState extends State<LandingScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: const [
                       Icon(Icons.play_circle_fill_rounded,
-                          color: Colors.orangeAccent, size: 24),
+                          color: Colors.orangeAccent),
                       SizedBox(width: 10),
                       Text(
-                        'Tap to activate feed',
+                        'Tap to activate intel feed',
                         style: TextStyle(
                           color: Colors.orangeAccent,
                           letterSpacing: 1.3,
-                          fontSize: 13,
                         ),
                       ),
                     ],
@@ -206,13 +348,13 @@ class _LandingScreenState extends State<LandingScreen>
     return Row(
       children: [
         Container(
-          width: 36,
-          height: 36,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: Colors.orangeAccent.withOpacity(0.7),
+              color: Colors.orangeAccent.withOpacity(0.8),
               width: 1.5,
             ),
           ),
@@ -222,12 +364,12 @@ class _LandingScreenState extends State<LandingScreen>
             size: 22,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         const Text(
           'DIVERGENT  ALLIANCE',
           style: TextStyle(
             color: Colors.white,
-            letterSpacing: 3.0,
+            letterSpacing: 3,
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -238,9 +380,9 @@ class _LandingScreenState extends State<LandingScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
-              color: Colors.orangeAccent.withOpacity(0.7),
+              color: Colors.orangeAccent.withOpacity(0.8),
             ),
-            color: Colors.black.withOpacity(0.6),
+            color: Colors.black.withOpacity(0.7),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -248,7 +390,7 @@ class _LandingScreenState extends State<LandingScreen>
               Icon(Icons.circle, size: 8, color: Colors.greenAccent),
               SizedBox(width: 8),
               Text(
-                'WX PRO LIVE FEED',
+                'WX GRID READY',
                 style: TextStyle(
                   color: Colors.orangeAccent,
                   fontSize: 11,
@@ -272,8 +414,8 @@ class _LandingScreenState extends State<LandingScreen>
           'OPERATIONAL WEATHER INTELLIGENCE',
           style: TextStyle(
             color: Colors.white70,
-            letterSpacing: 3.5,
             fontSize: 11,
+            letterSpacing: 3.5,
           ),
         ),
         const SizedBox(height: 10),
@@ -313,7 +455,7 @@ class _LandingScreenState extends State<LandingScreen>
                   shadows: [
                     Shadow(
                       color: baseColor,
-                      blurRadius: 22,
+                      blurRadius: 20,
                     ),
                     Shadow(
                       color: baseColor,
@@ -329,19 +471,26 @@ class _LandingScreenState extends State<LandingScreen>
     );
   }
 
+  Widget _buildDesktopButtons(BuildContext context) {
+    return _buildButtonsRow(
+      context,
+      compact: false,
+    );
+  }
+
   Widget _buildButtonsRow(BuildContext context, {required bool compact}) {
     final double height = compact ? 48 : 52;
-    final EdgeInsets padding =
-        compact ? const EdgeInsets.symmetric(horizontal: 18) : const EdgeInsets.symmetric(horizontal: 24);
+    final EdgeInsets padding = compact
+        ? const EdgeInsets.symmetric(horizontal: 20)
+        : const EdgeInsets.symmetric(horizontal: 26);
 
     return Row(
       children: [
-        // WEATHER CENTER
         SizedBox(
           height: height,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orangeAccent,
+              backgroundColor: const Color(0xFFFF8A00),
               foregroundColor: Colors.black,
               padding: padding,
               shape: RoundedRectangleBorder(
@@ -370,13 +519,15 @@ class _LandingScreenState extends State<LandingScreen>
           ),
         ),
         const SizedBox(width: 16),
-        // SHOP
         SizedBox(
           height: height,
           child: OutlinedButton(
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.orangeAccent,
-              side: const BorderSide(color: Colors.orangeAccent, width: 1.4),
+              foregroundColor: const Color(0xFFFF8A00),
+              side: const BorderSide(
+                color: Color(0xFFFF8A00),
+                width: 1.4,
+              ),
               padding: padding,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),
