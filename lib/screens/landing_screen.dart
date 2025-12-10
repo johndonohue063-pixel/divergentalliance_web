@@ -171,7 +171,7 @@ class _LandingScreenState extends State<LandingScreen>
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) =>
-                                const ShopUnderConstructionScreen(),
+                                ShopUnderConstructionScreen(),
                           ),
                         );
                       },
@@ -546,7 +546,7 @@ class _LandingScreenState extends State<LandingScreen>
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => const ShopUnderConstructionScreen(),
+                  builder: (_) => ShopUnderConstructionScreen(),
                 ),
               );
             },
@@ -620,6 +620,49 @@ class _LandingScreenState extends State<LandingScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class ShopUnderConstructionScreen extends StatelessWidget {
+  const ShopUnderConstructionScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Divergent Alliance Systems Live',
+                style: TextStyle(
+                  color: Colors.orange.shade200,
+                  fontSize: 18,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Shop module is under active construction.',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Return to grid'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
